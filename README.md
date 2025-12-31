@@ -19,40 +19,39 @@ See [`JSDoc.md`](./JSDoc.md) for code-level documentation.
 
 ## Features
 
+### 🎯 Manual Message Targeting (NEW!)
+*Select any message in the chat as the focal point for guided tools.*
+- A **crosshair button** (🎯) now appears on every message.
+- Click it to set that message as the "Target".
+- All guided tools (Response, Continue, Swipe, Impersonate) will now use that message's historical position as their context, ignoring any subsequent messages (like automated summaries or roadway info).
+- Visual indicators show which message is currently targeted.
+
 ### 🐕 Guided Response
 *Inject instructions before the AI replies.*
 - Type instructions and press 🐕.
 - Your instructions guide the next AI response.
-- [Video Example](https://youtube.com/shorts/yxdtbF3NxW4?feature=share)
+- Now respects the manual target and context limits.
 
 ### 👈 Guided Swipe
-*Regenerate the last AI message with new guidance.*
-- Enter new instructions and press 👈 to generate a new swipe.
-- Only available if the last message is from the AI.
-- [Video Example](https://youtube.com/shorts/GRQ9l_8K6-Y?feature=share)
+*Regenerate any message (AI or User) with new guidance.*
+- Enter instructions and press 👈 to generate a new version of the message.
+- **Support for Historical Swipes:** Now works reliably on older messages by temporarily focusing the AI's context on that specific point in time.
+- **User Message Swiping:** Special logic generates new versions of user messages using your current persona.
 
-### Impersonation (1st: 👤, 2nd: 👥, 3rd: 🗣️)
-*Expand outlines into rich, in-character narratives.*
-- Enter a brief outline, select perspective (toggle in settings), and press the corresponding button (👤/👥/🗣️).
-- Your outline is expanded into a full message from the chosen viewpoint.
-- Can be hidden or displayed individually per settings. 1st Person is displayed by default.
-- Video Examples:
-  - [1st Person](https://youtube.com/shorts/FT5gv3d2kE4?feature=share)
-  - [2nd Person](https://youtube.com/shorts/80l12LrtBpQ?feature=share)
-  - [3rd Person](https://youtube.com/shorts/wWka-1URLPg?feature=share)
+### 👤 Guided Impersonate (Consolidated)
+*Expand outlines using customizable perspective templates.*
+- Enter a brief outline and press 👤.
+- **Dynamic Templates:** Choose from 1st, 2nd, 3rd person, or custom templates (stored in `impersonateTemplates.json`).
+- Automatically inherits the correct persona name for consistent swiping.
 
 ### 📖 Persistent Guides Menu
 *Manage persistent scenario context.*
 - Click the 📖 button to open the persistent guides menu.
-- Select a guide type (see below) to generate or manage context.
+- Select a guide type to generate or manage context.
+- **Stat Tracker:** Monitor and update character stats or story variables automatically.
 
 **Guide Types:**
-  - 🗺️ Situational: Generate context from recent chat or user focus.
-  - 🧠 Thinking: Generate character thoughts (auto-trigger optional).
-  - 👕 Clothes: Describe character outfits (auto-trigger optional).
-  - 🧍 State: Detail character positions/status (auto-trigger optional).
-  - 📜 Rules: Define or update in-story rules.
-  - ➕ Custom: Inject user-defined context.
+  - 🗺️ Situational, 🧠 Thinking, 👕 Clothes, 🧍 State, 📜 Rules, ➕ Custom, 🎮 Fun.
 
 **Management Actions:**
   - ✏️ Edit Guides: Modify existing guide injections via popup.
@@ -89,38 +88,12 @@ See [`JSDoc.md`](./JSDoc.md) for code-level documentation.
 
 ## ⚙️ Settings
 
-All extension settings are managed via SillyTavern’s Extension Settings panel:
-
-- **Auto-Trigger**: toggle automatic execution of:
-  - Thinking Guide
-  - State Guide
-  - Clothes Guide
-
-- **Buttons Visibility**: show or hide action buttons:
-  - 1st Person Impersonation (👤)
-  - 2nd Person Impersonation (👥)
-  - 3rd Person Impersonation (🗣️)
-  - Guided Response (🐕)
-  - Guided Swipe (👈)
-  - Persistent Guides Menu (📖)
-
-- **Injection Role**: select the role (`system`, `assistant`, or `user`) used when injecting instructions.
-
-- **Debug Mode**: when enabled, shows detailed debug information in the browser console. Useful for troubleshooting but can clutter the console during normal use.
-
-- **Presets**: for each guide/tool (Clothes, State, Thinking, Situational, Rules, Custom, Corrections, Spellchecker, Edit Intros, Impersonation 1st/2nd/3rd), choose any SillyTavern preset. Before running a guide/tool, the extension will switch to that preset (and its configured API/model), execute the action, then restore your previous preset—allowing different models per guide.
-
-- **Prompt Overrides**: customize the raw prompt template for each guide/tool. Use `{{input}}` for your input text and other placeholders as supported. Overrides apply to:
-  - Clothes Guide Prompt
-  - State Guide Prompt
-  - Thinking Guide Prompt
-  - Situational Guide Prompt
-  - Rules Guide Prompt
-  - Corrections Prompt
-  - Spellchecker Prompt
-  - Impersonate 1st/2nd/3rd Person Prompts
-  - Guided Response Prompt
-  - Guided Swipe Prompt
+- **Context Message Limit (NEW!):** Restrict how many previous messages are included as context for generations (0 for all). This helps focus the AI and manage token usage.
+- **Impersonate Template (NEW!):** Choose your default perspective template (1st, 2nd, 3rd, or custom) for the Guided Impersonate tool.
+- **Auto-Trigger**: Toggle automatic execution of Thinking, State, and Clothes guides before each response.
+- **Buttons Visibility**: Choose which action buttons to display in the UI.
+- **Injection Role**: Select the role (`system`, `assistant`, or `user`) used for injected guidance.
+- **Presets & Profiles**: Assign specific SillyTavern presets or profiles to each individual tool, allowing the extension to automatically switch models/parameters based on the task.
 
 ---
 
