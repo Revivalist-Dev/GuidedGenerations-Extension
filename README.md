@@ -119,6 +119,8 @@ Contributions are welcome! Submit pull requests or open issues for improvements,
 
 ## ❤️ Support the Project
 
-If you find this extension helpful, please consider supporting my work:
+If you find this extension helpful, please consider supporting the developers:
 
-- [☕ Buy me a coffee on Ko-fi](https://ko-fi.com/samueras)
+- [☕ Support the Current Developer and his project to revive the website Roleplayersguild.com (REVIVALIST - @RoleplayersGuild)](https://ko-fi.com/roleplayersguild)
+
+- [☕ Support the Original Creator (Samueras)](https://ko-fi.com/samueras)
