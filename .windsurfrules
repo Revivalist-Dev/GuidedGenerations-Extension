@@ -1,3 +1,0 @@
-- the files in the Folder References are just that. It is the source code of SillyTavern for which we are building an extension. And it is the original Guided Generations Quickreply set wich we try to emulate.
-- in addition to analizing and editing files always give a short explanation of what you are doing before each step.
-- Sillytavern server runs on a seperate machine and can't best started or stopped from the ai.

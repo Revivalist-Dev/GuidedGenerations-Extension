@@ -8,8 +8,7 @@ import { guidedResponse } from './scripts/guidedResponse.js';
 import { guidedSwipe } from './scripts/guidedSwipe.js';
 import { guidedContinue, undoLastGuidedAddition, revertToOriginalGuidedContinue, initGuidedContinueListeners } from './scripts/guidedContinue.js'; // Added initGuidedContinueListeners, undoLastGuidedAddition, revertToOriginalGuidedContinue
 import { guidedImpersonate } from './scripts/guidedImpersonate.js';
-import { guidedImpersonate2nd } from './scripts/guidedImpersonate2nd.js'; // Import 2nd
-import { guidedImpersonate3rd } from './scripts/guidedImpersonate3rd.js'; // Import 3rd
+// Removed 2nd and 3rd person imports as they are now consolidated
 // Import the new Update Character function
 import { updateCharacter } from './scripts/persistentGuides/updateCharacter.js';
 // Import the new Custom Auto Guide
@@ -28,9 +27,31 @@ import stateGuide from './scripts/persistentGuides/stateGuide.js';
 import clothesGuide from './scripts/persistentGuides/clothesGuide.js';
 import { checkAndExecuteTracker } from './scripts/persistentGuides/trackerLogic.js';
 
-// --- Shared State for Impersonation Input Recovery ---
+// --- Shared State for Impersonation ---
 let previousImpersonateInput = ''; // Input before the last impersonation
 let lastImpersonateResult = '';    // Input after the last impersonation
+let impersonateTemplates = [];     // Loaded from impersonateTemplates.json
+
+/**
+ * Loads impersonate templates from the JSON file
+ */
+async function loadImpersonateTemplates() {
+    try {
+        const response = await fetch('scripts/extensions/third-party/GuidedGenerations-Extension/impersonateTemplates.json');
+        if (response.ok) {
+            impersonateTemplates = await response.json();
+            debugLog(`[${extensionName}] Loaded ${impersonateTemplates.length} impersonate templates.`);
+        } else {
+            console.error(`[${extensionName}] Failed to load impersonateTemplates.json: ${response.status}`);
+        }
+    } catch (error) {
+        console.error(`[${extensionName}] Error loading impersonate templates:`, error);
+    }
+}
+
+export function getImpersonateTemplate(id) {
+    return impersonateTemplates.find(t => t.id === id);
+}
 
 export function getPreviousImpersonateInput() {
     return previousImpersonateInput;
@@ -180,9 +201,8 @@ export const defaultSettings = {
     autoTriggerState: false,   // Default off
     autoTriggerThinking: false, // Default off
     enableAutoCustomAutoGuide: false, // Default off for auto-triggering the new guide
-    showImpersonate1stPerson: true, // Default on
-    showImpersonate2ndPerson: false, // Default off
-    showImpersonate3rdPerson: false, // Default off
+    showImpersonate: true, // Consolidated toggle
+    impersonateTemplate: '1st', // Default template
     showGuidedContinue: false, // Default off for Guided Continue
     showGuidedResponse: true, // Default on for Guided Response
     showGuidedSwipe: true, // Default on for Guided Swipe
@@ -198,6 +218,7 @@ export const defaultSettings = {
     debugMode: false, // Default off: Toggle for debug logging
     persistentGuidesInChatlog: true, // Default on: Show persistent guides in chatlog
     injectionEndRole: 'system', // NEW SETTING: Default role for non-chat injections
+    contextMessageCount: 0, // NEW SETTING: 0 means all previous messages, >0 limits context
     // Profile and Preset settings for each guide
     profileClothes: '', // Profile for Clothes Guide
     presetClothes: '',
@@ -226,15 +247,6 @@ export const defaultSettings = {
     profileEditIntros: '', // Profile for Edit Intros
     presetEditIntros: '',
     profileEditIntrosApiType: '', // API type for Edit Intros profile
-    profileImpersonate1st: '', // Profile for Impersonate 1st Person
-    presetImpersonate1st: '',
-    profileImpersonate1stApiType: '', // API type for Impersonate 1st Person profile
-    profileImpersonate2nd: '', // Profile for Impersonate 2nd Person
-    presetImpersonate2nd: '',
-    profileImpersonate2ndApiType: '', // API type for Impersonate 2nd Person profile
-    profileImpersonate3rd: '', // Profile for Impersonate 3rd Person
-    presetImpersonate3rd: '',
-    profileImpersonate3rdApiType: '', // API type for Impersonate 3rd Person profile
     profileCustomAuto: '', // Profile for Custom Auto Guide
     presetCustomAuto: '', // Default preset for Custom Auto Guide
     profileCustomAutoApiType: '', // API type for Custom Auto Guide profile
@@ -257,9 +269,6 @@ export const defaultSettings = {
     promptRules: '[OOC: Answer me out of Character! Don\'t continue the RP.  Create a list of explicit rules that {{char}} has learned and follows from the story and their character description. Only include rules explicitly established in chat history or character info. Format as a numbered list.] ',
     promptCorrections: '[OOC: Answer me out of Character! Don\'t continue the RP.  Do not continue the story do not wrote in character, instead write {{char}}\'s last response (msgtorework) again but change it to reflect the following: {{input}}. Don\'t make any other changes besides this.]',
             promptSpellchecker: 'Without any intro or outro correct the grammar, punctuation and improve the paragraph\'s flow without adding anything else of: {{input}}',
-    promptImpersonate1st: 'Write in first Person perspective from {{user}}. {{input}}',
-    promptImpersonate2nd: 'Write in second Person perspective from {{user}}, using you/yours for {{user}}. {{input}}',
-    promptImpersonate3rd: 'Write in third Person perspective from {{user}} using third-person pronouns for {{user}}. {{input}}',
     promptGuidedResponse: '[Take the following into special consideration for your next message: {{input}}]',
     promptGuidedSwipe: '[Take the following into special consideration for your next message: {{input}}]',
     promptGuidedContinue: '[Continue the story based on the following input: {{input}}]', // Default prompt override for Guided Continue
@@ -390,10 +399,25 @@ async function updateSettingsUI() {
             }
         });
 
-        // Update the new dropdown
+        // Update dropdowns
         const injectionRoleSelect = document.getElementById('gg_injectionEndRole');
         if (injectionRoleSelect && extension_settings[extensionName].injectionEndRole) {
             injectionRoleSelect.value = extension_settings[extensionName].injectionEndRole;
+        }
+        const impersonateTemplateSelect = document.getElementById('gg_impersonateTemplate');
+        if (impersonateTemplateSelect) {
+            // Populate dropdown from loaded templates
+            impersonateTemplateSelect.innerHTML = '';
+            impersonateTemplates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.name;
+                impersonateTemplateSelect.appendChild(option);
+            });
+            
+            if (extension_settings[extensionName].impersonateTemplate) {
+                impersonateTemplateSelect.value = extension_settings[extensionName].impersonateTemplate;
+            }
         }
 
         // Populate profile dropdowns
@@ -473,7 +497,7 @@ async function updateSettingsUI() {
         });
 
         // Populate depth number input fields
-        ['depthPromptClothes', 'depthPromptState', 'depthPromptThinking', 'depthPromptCustomAuto', 'depthPromptSituational', 'depthPromptRules', 'depthPromptCorrections', 'depthPromptGuidedResponse', 'depthPromptGuidedSwipe'].forEach(key => {
+        ['depthPromptClothes', 'depthPromptState', 'depthPromptThinking', 'depthPromptCustomAuto', 'depthPromptSituational', 'depthPromptRules', 'depthPromptCorrections', 'depthPromptGuidedResponse', 'depthPromptGuidedSwipe', 'contextMessageCount'].forEach(key => {
             const input = document.getElementById(`gg_${key}`);
             if (input) {
                 input.value = extension_settings[extensionName][key] ?? defaultSettings[key] ?? 0; // Default to 0 if undefined
@@ -517,8 +541,11 @@ const handleSettingsChangeDelegated = async (event) => {
         handleSettingChange(event); // Call the original handler
 
         // Special handling for button visibility settings after change
-        if (event.target.name === 'showImpersonateButton') {
-            updateImpersonateButtonVisibility();
+        if (event.target.name === 'showImpersonate') {
+            updateExtensionButtons();
+        }
+        if (event.target.name === 'impersonateTemplate') {
+            updateExtensionButtons();
         }
         if (event.target.name === 'showPersistentGuidesMenu') {
             const menu = document.getElementById('persistent_guides_menu');
@@ -1250,20 +1277,13 @@ function updateExtensionButtons() {
     
     // Add standard buttons after tool buttons (right side)
     
-    // Add impersonate buttons
-    if (settings.showImpersonate1stPerson) {
-        const btn1 = createActionButton('gg_impersonate_button', 'Guided Impersonate (1st Person)', 'fa-solid fa-user', guidedImpersonate);
-        regularButtons.push(btn1);
-    }
-    
-    if (settings.showImpersonate2ndPerson) {
-        const btn2 = createActionButton('gg_impersonate_button_2nd', 'Guided Impersonate (2nd Person)', 'fa-solid fa-user-group', guidedImpersonate2nd);
-        regularButtons.push(btn2);
-    }
-    
-    if (settings.showImpersonate3rdPerson) {
-        const btn3 = createActionButton('gg_impersonate_button_3rd', 'Guided Impersonate (3rd Person)', 'fa-solid fa-users', guidedImpersonate3rd);
-        regularButtons.push(btn3);
+    // Add impersonate button (consolidated)
+    if (settings.showImpersonate) {
+        const templateId = settings.impersonateTemplate || '1st';
+        const template = getImpersonateTemplate(templateId);
+        const personaLabel = template ? template.name : (templateId === '1st' ? '1st Person' : (templateId === '2nd' ? '2nd Person' : '3rd Person'));
+        const btn = createActionButton('gg_impersonate_button', `Guided Impersonate (${personaLabel})`, 'fa-solid fa-user', () => guidedImpersonate(templateId));
+        regularButtons.push(btn);
     }
 
     // Add Guided Swipe Button
@@ -1430,6 +1450,9 @@ function setupQRMutationObserver() {
 
 // Initial setup function
 async function setup() {
+    // Load impersonate templates
+    await loadImpersonateTemplates();
+    
     // Load extension settings
     loadSettings();
     
@@ -1822,6 +1845,25 @@ $(document).ready(async function () {
         }
     });
 
+    // Initialize the Target Button using the template method
+    initializeTargetButton();
+
+    // Re-apply visual state on chat change or message render
+    const reapplyTargetVisuals = () => {
+        const targetId = getGuidedGenerationTargetMessageId();
+        if (targetId) {
+            setGuidedGenerationTargetMessageId(targetId);
+        }
+    };
+
+    context.eventSource.on(context.eventTypes.CHAT_CHANGED, reapplyTargetVisuals);
+    if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) {
+        context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, reapplyTargetVisuals);
+    }
+    if (context.eventTypes.USER_MESSAGE_RENDERED) {
+        context.eventSource.on(context.eventTypes.USER_MESSAGE_RENDERED, reapplyTargetVisuals);
+    }
+
     // Check extension version and notify if updated
     checkVersionAndNotify();
 }); // END OF $(document).ready()
@@ -1854,6 +1896,79 @@ async function checkVersionAndNotify() {
     }
 }
 
+// New state variable to track the targeted message ID
+let guidedGenerationTargetMessageId = null;
+
+function setGuidedGenerationTargetMessageId(id) {
+    // Clear previous visual state
+    $('.guided-generation-target').removeClass('guided-generation-target');
+    $('.guided_target_button.active').removeClass('active');
+
+    guidedGenerationTargetMessageId = id;
+
+    if (id !== null) {
+        // Apply visual state to the new target if it exists in DOM
+        // Note: ST message divs use 'mesid' attribute for the index/ID
+        const $targetRow = $(`#chat .mes[mesid="${id}"]`);
+        if ($targetRow.length) {
+            $targetRow.addClass('guided-generation-target');
+            $targetRow.find('.guided_target_button').addClass('active');
+        }
+        debugLog(`[${extensionName}] Target set to message ID: ${id}`);
+    } else {
+        debugLog(`[${extensionName}] Target cleared.`);
+    }
+}
+
+function getGuidedGenerationTargetMessageId() {
+    return guidedGenerationTargetMessageId;
+}
+
+// Initialize the "Set as Target" button using template injection
+function initializeTargetButton() {
+    const buttonHtml = `
+        <div title="Set as Guided Generation Target" class="mes_button guided_target_button fa-solid fa-crosshairs interactable" tabindex="0" role="button"></div>
+    `;
+
+    // 1. Inject into the template for future messages
+    const $templateTarget = $("#message_template .mes_buttons .extraMesButtons");
+    if ($templateTarget.length) {
+        $templateTarget.prepend(buttonHtml);
+        debugLog(`[${extensionName}] Injected target button into message template.`);
+    } else {
+        console.warn(`[${extensionName}] Could not find #message_template .extraMesButtons to inject target button.`);
+    }
+
+    // 2. Inject into existing messages (if any)
+    $("#chat .mes").each(function() {
+        const $extraButtons = $(this).find(".extraMesButtons");
+        if ($extraButtons.length && $extraButtons.find(".guided_target_button").length === 0) {
+            $extraButtons.prepend(buttonHtml);
+        }
+    });
+
+    // 3. Setup delegated event listener on the chat container
+    $("#chat").off("click", ".guided_target_button").on("click", ".guided_target_button", function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const $mes = $btn.closest(".mes");
+        const mesId = $mes.attr("mesid"); // ST uses 'mesid' attribute string
+
+        if (mesId) {
+            // Toggle logic
+            const currentTarget = getGuidedGenerationTargetMessageId();
+            // Loose equality to handle string/number diffs
+            if (currentTarget == mesId) {
+                setGuidedGenerationTargetMessageId(null);
+            } else {
+                setGuidedGenerationTargetMessageId(mesId);
+            }
+        }
+    });
+}
+
+
+
 // Expose functions to the global scope for buttons or STScripts
 window.GuidedGenerations = {
     simpleSend,
@@ -1863,7 +1978,9 @@ window.GuidedGenerations = {
     revertToOriginalGuidedContinue, // Expose new function
     guidedResponse,
     updatePersistentGuideCounter, // Expose counter update function
-};
+    setGuidedGenerationTargetMessageId, // Expose new function
+    getGuidedGenerationTargetMessageId, // Expose new function
+}; // Close window.GuidedGenerations object
 
 /**
  * Counts the number of active persistent guides.

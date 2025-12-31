@@ -44,6 +44,33 @@ function getLastImpersonateResult() {
     return lastImpersonateResult;
 }
 
+/**
+ * Temporarily truncates the global chat array to limit context for AI generation.
+ * @param {number} targetIndex The index of the message to treat as the "last" message.
+ * @returns {Function} A function to restore the chat to its original state.
+ */
+function truncateChatForContext(targetIndex) {
+    const limit = extension_settings[extensionName]?.contextMessageCount ?? 0;
+    const fullBackup = [...chat];
+    
+    // Determine the slice we want to keep as context
+    const start = (limit > 0) ? Math.max(0, targetIndex - limit + 1) : 0;
+    const end = targetIndex + 1;
+    const contextSlice = chat.slice(start, end);
+    
+    // Modify global chat array in place
+    chat.length = 0;
+    chat.push(...contextSlice);
+    
+    debugLog(`[Context] Truncated chat for generation. Original length: ${fullBackup.length}, Context start: ${start}, Target index: ${targetIndex}, New length: ${chat.length}`);
+    
+    return () => {
+        chat.length = 0;
+        chat.push(...fullBackup);
+        debugLog(`[Context] Restored chat. Length: ${chat.length}`);
+    };
+}
+
 // Group chat detection function
 function isGroupChat() {
     const context = getContext();
@@ -59,9 +86,7 @@ const defaultSettings = {
     autoTriggerState: false,
     autoTriggerThinking: false,
     enableAutoCustomAutoGuide: false,
-    showImpersonate1stPerson: true,
-    showImpersonate2ndPerson: false,
-    showImpersonate3rdPerson: false,
+    showImpersonate: true,
     showGuidedContinue: false,
     showGuidedResponse: true,
     showGuidedSwipe: true,
@@ -109,8 +134,6 @@ import { guidedSwipe, generateNewSwipe } from '../guidedSwipe.js';
 import { guidedContinue, initGuidedContinueListeners, undoLastGuidedAddition, revertToOriginalGuidedContinue } from '../guidedContinue.js';
 import { guidedResponse } from '../guidedResponse.js';
 import { guidedImpersonate } from '../guidedImpersonate.js';
-import { guidedImpersonate2nd } from '../guidedImpersonate2nd.js';
-import { guidedImpersonate3rd } from '../guidedImpersonate3rd.js';
 import { simpleSend } from '../simpleSend.js';
 import { recoverInput } from '../inputRecovery.js';
 import { loadSettingsPanel } from '../settingsPanel.js';
@@ -132,6 +155,9 @@ export {
     saveChatConditional,
     addOneMessage,
     renderExtensionTemplateAsync,
+    
+    // Context handling
+    truncateChatForContext,
     
     // Utility functions
     handleSwitching,
@@ -180,8 +206,6 @@ export {
     revertToOriginalGuidedContinue,
     guidedResponse,
     guidedImpersonate,
-    guidedImpersonate2nd,
-    guidedImpersonate3rd,
     simpleSend,
     recoverInput,
     loadSettingsPanel,

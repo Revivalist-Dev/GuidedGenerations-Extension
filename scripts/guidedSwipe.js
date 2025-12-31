@@ -1,6 +1,9 @@
 // scripts/guidedSwipe.js
 
-import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput } from './persistentGuides/guideExports.js'; // Import from central hub
+import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
+import { swipe, chat, redisplayChat } from '../../../../../script.js';
+import { SWIPE_DIRECTION, SWIPE_SOURCE } from '../../../../../scripts/constants.js';
+import { guidedImpersonateSwipe } from './guidedImpersonateSwipe.js';
 
 // Helper function for delays
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -38,9 +41,10 @@ async function executeSTScriptCommand(command) {
  * Finds the last swipe for the last message, navigates directly to it,
  * and triggers one more swipe (generation) by calling context.swipe.right().
  * Uses direct manipulation for navigation and waits for generation end event.
+ * @param {number} forceTargetIndex - Optional index to force a swipe on.
  * @returns {Promise<boolean>} True if successful, false otherwise.
  */
-async function generateNewSwipe() {
+async function generateNewSwipe(forceTargetIndex = -1) {
     // Ensure necessary functions/objects are available from SillyTavern's scope
     let context = getContext();
     const expectedContextProps = ['chat', 'messageFormatting', 'eventSource', 'event_types'];
@@ -64,9 +68,28 @@ async function generateNewSwipe() {
             alert("Guided Swipe Error: Cannot access chat context.");
             return false;
         }
-        let lastMessageIndex = context.chat.length - 1;
-        let messageData = context.chat[lastMessageIndex];
-        const mesDom = document.querySelector(`#chat .mes[mesid="${lastMessageIndex}"]`);
+
+        // DETERMINE TARGET INDEX
+        let targetIndex = forceTargetIndex >= 0 ? forceTargetIndex : context.chat.length - 1;
+        
+        if (forceTargetIndex < 0) {
+            // Check for globally set target (from the "Set as Target" button)
+            if (typeof window.GuidedGenerations !== 'undefined' && 
+                typeof window.GuidedGenerations.getGuidedGenerationTargetMessageId === 'function') {
+                const manualTarget = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
+                if (manualTarget !== null && manualTarget !== undefined) {
+                     // Ensure it's a number and valid
+                     const parsedTarget = parseInt(manualTarget);
+                     if (!isNaN(parsedTarget) && parsedTarget >= 0 && parsedTarget < context.chat.length) {
+                         targetIndex = parsedTarget;
+                         debugLog(`[Swipe] Using manually set target message index: ${targetIndex}`);
+                     }
+                }
+            }
+        }
+
+        let messageData = context.chat[targetIndex];
+        const mesDom = document.querySelector(`#chat .mes[mesid="${targetIndex}"]`);
 
         // Check if there are swipes and if navigation is needed
         if (messageData && Array.isArray(messageData.swipes) && messageData.swipes.length > 1) {
@@ -84,17 +107,17 @@ async function generateNewSwipe() {
                     const mesTextElement = mesDom.querySelector('.mes_text');
                     if (mesTextElement) {
                         mesTextElement.innerHTML = messageFormatting(
-                            messageData.mes, messageData.name, messageData.is_system, messageData.is_user, lastMessageIndex
+                            messageData.mes, messageData.name, messageData.is_system, messageData.is_user, targetIndex
                         );
                     }
                     // Update swipe counter in DOM
                     [...mesDom.querySelectorAll('.swipes-counter')].forEach(it => it.textContent = `${messageData.swipe_id + 1}/${messageData.swipes.length}`);
                 } else {
-                    debugLog(`[Swipe] Could not find DOM element for message ${lastMessageIndex} to update UI during direct navigation.`);
+                    debugLog(`[Swipe] Could not find DOM element for message ${targetIndex} to update UI during direct navigation.`);
                 }
 
                 // Save chat and notify - Removed saveChatConditional() as it's not available
-                eventSource.emit(event_types.MESSAGE_SWIPED, lastMessageIndex);
+                eventSource.emit(event_types.MESSAGE_SWIPED, targetIndex);
                 // Update button visibility - Removed showSwipeButtons() as it's not available
                 // showSwipeButtons();
                 // Use standard setTimeout for delay as context.delay is missing
@@ -115,8 +138,50 @@ async function generateNewSwipe() {
             return false;
         }
 
-        debugLog("[Swipe] Calling context.swipe.right() to trigger new swipe generation...");
-        context.swipe.right(); // THE VITAL CALL TO START GENERATION
+        debugLog(`[Swipe] Triggering new swipe generation for index ${targetIndex}...`);
+
+        // Wait for any active generation to finish/clear (is_send_press is global in ST)
+        if (typeof window.is_send_press !== 'undefined' && window.is_send_press) {
+            debugLog('[Swipe] Generation active (is_send_press), waiting...');
+            let attempts = 0;
+            while (window.is_send_press && attempts < 20) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            if (window.is_send_press) {
+                console.warn('[Swipe] Timed out waiting for is_send_press to clear. Attempting swipe anyway.');
+            }
+        }
+        
+        // Safe swipe execution handling both last and historical messages
+        try {
+            debugLog(`[Swipe] Triggering swipe for index ${targetIndex}. Total chat length: ${chat.length}`);
+            
+            // Apply Context Limit Truncation
+            const restore = truncateChatForContext(targetIndex);
+            
+            try {
+                // Since truncateChatForContext made targetIndex the last message, 
+                // we always use chat.length - 1 for the swipe call.
+                await swipe(null, SWIPE_DIRECTION.RIGHT, { 
+                    source: SWIPE_SOURCE.AUTO_SWIPE, 
+                    forceMesId: chat.length - 1 
+                });
+            } finally {
+                // Restore messages
+                restore();
+                
+                // Redisplay the restored messages to ensure DOM consistency
+                if (typeof redisplayChat === 'function') {
+                    await redisplayChat(chat, targetIndex);
+                } else {
+                    console.warn("[GuidedGenerations] redisplayChat not found, chat history restored but DOM might be incomplete until reload.");
+                }
+            }
+        } catch (err) {
+            console.error("[GuidedGenerations][Swipe] Swipe execution failed:", err);
+            throw err;
+        }
 
         // --- 3. Wait for Generation to Finish ---
         const generationPromise = new Promise((resolve) => {
@@ -158,7 +223,10 @@ async function generateNewSwipe() {
  * generates a new response, and restores the original input.
  * Uses the extracted generateNewSwipe function and local executeSTScriptCommand.
  */
-const guidedSwipe = async () => {
+const guidedSwipe = async (event) => {
+    if (event && typeof event.stopPropagation === 'function') {
+        event.stopPropagation();
+    }
     const textarea = document.getElementById('send_textarea');
     if (!textarea) {
         console.error('[GuidedGenerations][Swipe] Textarea #send_textarea not found.');
@@ -169,10 +237,25 @@ const guidedSwipe = async () => {
 
     const depth = extension_settings[extensionName]?.depthPromptGuidedSwipe ?? 0;
 
+    // DETERMINE TARGET INDEX
+    let targetIndex = chat.length - 1;
+    // Check for globally set target (from the "Set as Target" button)
+    if (typeof window.GuidedGenerations !== 'undefined' && 
+        typeof window.GuidedGenerations.getGuidedGenerationTargetMessageId === 'function') {
+        const manualTarget = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
+        if (manualTarget !== null && manualTarget !== undefined) {
+             const parsedTarget = parseInt(manualTarget);
+             if (!isNaN(parsedTarget) && parsedTarget >= 0 && parsedTarget < chat.length) {
+                 targetIndex = parsedTarget;
+                 debugLog(`[Swipe] Using manually set target message index: ${targetIndex}`);
+             }
+        }
+    }
+
     // If no input, skip injection and do a plain swipe
     if (!originalInput.trim()) {
         debugLog("[Swipe] No input detected, performing plain swipe.");
-        const swipeSuccess = await generateNewSwipe();
+        const swipeSuccess = await generateNewSwipe(targetIndex);
         if (swipeSuccess) {
             debugLog("[Swipe] Swipe finished successfully.");
         } else {
@@ -203,6 +286,8 @@ const guidedSwipe = async () => {
                 if (typeof context.executeSlashCommandsWithOptions === 'function') {
                     await context.executeSlashCommandsWithOptions(stscriptCommand);
                     debugLog('[Swipe] Executed Command:', stscriptCommand); 
+                    // Add delay to ensure any flags (like is_send_press) set by command execution are cleared
+                    await new Promise(resolve => setTimeout(resolve, 300));
                 } else {
                     throw new Error("context.executeSlashCommandsWithOptions function not found.");
                 }
@@ -248,7 +333,17 @@ const guidedSwipe = async () => {
 
                 // --- 2. Generate the new swipe --- (This now only runs if injection was found)
         debugLog('[Swipe] Instruction injection confirmed. Proceeding to generate new swipe...');
-        const swipeSuccess = await generateNewSwipe();
+        
+        // Check if target is a user message
+        const targetMessage = chat[targetIndex];
+        let swipeSuccess = false;
+        
+        if (targetMessage && targetMessage.is_user) {
+            debugLog(`[Swipe] Target is a user message, delegating to guidedImpersonateSwipe for generation.`);
+            swipeSuccess = await guidedImpersonateSwipe(targetIndex, filledPrompt);
+        } else {
+            swipeSuccess = await generateNewSwipe(targetIndex);
+        }
 
         if (swipeSuccess) {
             debugLog("[Swipe] Guided Swipe finished successfully.");

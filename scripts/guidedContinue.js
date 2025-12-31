@@ -1,4 +1,5 @@
-import { extension_settings, getContext, setPreviousImpersonateInput, getPreviousImpersonateInput, chat, eventSource, event_types, saveChatConditional, addOneMessage } from './persistentGuides/guideExports.js'; // Import from central hub
+import { extension_settings, getContext, setPreviousImpersonateInput, getPreviousImpersonateInput, chat, eventSource, event_types, saveChatConditional, addOneMessage, debugLog, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
+import { redisplayChat } from '../../../../../script.js';
 
 const extensionName = "GuidedGenerations-Extension";
 
@@ -54,6 +55,20 @@ const guidedContinue = async () => {
         console.error(`[${extensionName}][Continue] Textarea not found.`);
         return;
     }
+
+    // Check for target message
+    let targetIndex = -1;
+    if (typeof window.GuidedGenerations !== 'undefined' && typeof window.GuidedGenerations.getGuidedGenerationTargetMessageId === 'function') {
+        const manualTarget = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
+        if (manualTarget !== null && manualTarget !== undefined) {
+             const parsedTarget = parseInt(manualTarget);
+             if (!isNaN(parsedTarget) && parsedTarget >= 0 && parsedTarget < chat.length) {
+                 targetIndex = parsedTarget;
+                 debugLog(`[Continue] Using manually set target message index: ${targetIndex}`);
+             }
+        }
+    }
+
     const originalInputFromTextarea = textarea.value;
 
     if (chat.length === 0) {
@@ -61,7 +76,7 @@ const guidedContinue = async () => {
         return;
     }
 
-    indexOfMessageToModify = chat.length - 1; 
+    indexOfMessageToModify = targetIndex > -1 ? targetIndex : chat.length - 1; 
     const targetMessage = chat[indexOfMessageToModify];
     targetMessage.extra = targetMessage.extra || {}; 
     if (targetMessage.extra.originalForGuidedContinue === undefined) {
@@ -82,8 +97,11 @@ const guidedContinue = async () => {
     }
 
     const stscriptCommand = `/continue await=true ${commandParameter} |`;
-    if (typeof SillyTavern !== 'undefined' && typeof SillyTavern.getContext === 'function') {
-        const context = SillyTavern.getContext();
+    const context = getContext();
+    if (context && typeof context.executeSlashCommandsWithOptions === 'function') {
+        // Apply Context Limit Truncation
+        const restore = truncateChatForContext(indexOfMessageToModify);
+        
         try {
             isGuidedContinueInProgress = true; 
             await context.executeSlashCommandsWithOptions(stscriptCommand);
@@ -93,6 +111,13 @@ const guidedContinue = async () => {
             indexOfMessageToModify = -1;
             textOfMessageBeforeContinue = '';
         } finally {
+            // Restore chat
+            restore();
+            
+            if (typeof redisplayChat === 'function') {
+                await redisplayChat();
+            }
+
             const restoredInput = getPreviousImpersonateInput();
             textarea.value = restoredInput;
             textarea.dispatchEvent(new Event('input', { bubbles: true }));

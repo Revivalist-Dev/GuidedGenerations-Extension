@@ -10,21 +10,15 @@
                 <h4>Show Action Buttons</h4> <!-- Heading for Impersonate/Action Buttons -->
                 <div class="setting_item">
                     <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                        <input type="checkbox" id="gg_showImpersonate1stPerson" name="showImpersonate1stPerson" class="gg-setting-input">
-                        <label for="gg_showImpersonate1stPerson" style="margin-left: 8px;">Show Impersonate (1st Person)</label>
+                        <input type="checkbox" id="gg_showImpersonate" name="showImpersonate" class="gg-setting-input">
+                        <label for="gg_showImpersonate" style="margin-left: 8px;">Show Guided Impersonate</label>
                     </div>
                 </div>
                 <div class="setting_item">
-                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                        <input type="checkbox" id="gg_showImpersonate2ndPerson" name="showImpersonate2ndPerson" class="gg-setting-input">
-                        <label for="gg_showImpersonate2ndPerson" style="margin-left: 8px;">Show Impersonate (2nd Person)</label>
-                    </div>
-                </div>
-                <div class="setting_item">
-                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                        <input type="checkbox" id="gg_showImpersonate3rdPerson" name="showImpersonate3rdPerson" class="gg-setting-input">
-                        <label for="gg_showImpersonate3rdPerson" style="margin-left: 8px;">Show Impersonate (3rd Person)</label>
-                    </div>
+                    <label for="gg_impersonateTemplate" style="margin-bottom: 5px; display: block;">Default Impersonate Template:</label>
+                    <select id="gg_impersonateTemplate" name="impersonateTemplate" class="gg-setting-input text_pole select_compact">
+                        <!-- Options populated by JS from impersonateTemplates.json -->
+                    </select>
                 </div>
                 <div class="setting_item">
                     <div style="display: flex; align-items: center; margin-bottom: 5px;">
@@ -172,6 +166,13 @@
                     </select>
                     <small class="setting_item_description"> <!-- Description -->
                         Determines the role assigned to the end of injected content (like Describe State/Clothes) before generation. 'System' is often best for guidance, 'Assistant' continues the flow, 'User' can sometimes be useful depending on the model/prompt structure. Default: System.
+                    </small>
+                </div>
+                <div class="setting_item">
+                    <label for="gg_contextMessageCount" style="margin-bottom: 5px; display: block;">Context Message Limit:</label>
+                    <input type="number" id="gg_contextMessageCount" name="contextMessageCount" class="gg-setting-input text_pole" min="0" value="0" style="width: 100px;">
+                    <small class="setting_item_description">
+                        Number of previous messages to include as context for guided generations. 0 means all available messages. This helps focus the AI on recent events or save tokens.
                     </small>
                 </div>
                 <hr>

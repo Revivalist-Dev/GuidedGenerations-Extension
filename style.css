@@ -611,3 +611,40 @@
         font-size: 0.85em;
     }
 }
+
+/* --- Guided Generations Target Message and Button Styles --- */
+
+/* Highlight the message row that is set as the guided generation target */
+.mes_row.guided-generation-target {
+    /* Use a subtle background color and border to indicate target */
+    background-color: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.15)) !important; 
+    border-left: 5px solid var(--SmartThemeAccentColor, #1e90ff);
+    padding-left: 5px; /* Adjust padding to accommodate the new border */
+}
+
+/* Base style for the "Set as Target" button */
+.guided_target_button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    /* Ensure visibility against potential parent overrides */
+    opacity: 1 !important; 
+    visibility: visible !important;
+}
+
+/* Style for the "Set as Target" button when it is active */
+.guided_target_button.active {
+    /* Make the button visually distinct when active */
+    background-color: var(--SmartThemeAccentColor, #1e90ff);
+    color: var(--SmartThemeBg, #ffffff); /* Ensure text/icon is visible */
+    border-color: var(--SmartThemeAccentColor, #1e90ff);
+    box-shadow: 0 0 8px rgba(30, 144, 255, 0.5); /* Subtle glow */
+}
+
+/* Ensure the active button still looks good on hover */
+.guided_target_button.active:hover {
+    background-color: var(--SmartThemeActColor, #00bfff); /* Use a slightly brighter accent color on hover */
+    color: var(--SmartThemeBg, #ffffff);
+    opacity: 1;
+}

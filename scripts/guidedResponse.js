@@ -1,7 +1,8 @@
 /**
  * @file Contains the logic for the Guided Response button.
  */
-import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog } from './persistentGuides/guideExports.js'; // Import from central hub
+import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
+import { chat, redisplayChat } from '../../../../../script.js';
 
 // Import the guide scripts for direct execution
 import thinkingGuide from './persistentGuides/thinkingGuide.js'; // Correct relative path
@@ -17,6 +18,20 @@ const guidedResponse = async () => {
         console.error('[GuidedGenerations][Response] Textarea #send_textarea not found.');
         return;
     }
+
+    // Check for target message
+    let targetIndex = -1;
+    if (typeof window.GuidedGenerations !== 'undefined' && typeof window.GuidedGenerations.getGuidedGenerationTargetMessageId === 'function') {
+        const manualTarget = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
+        if (manualTarget !== null && manualTarget !== undefined) {
+             const parsedTarget = parseInt(manualTarget);
+             if (!isNaN(parsedTarget) && parsedTarget >= 0 && parsedTarget < chat.length) {
+                 targetIndex = parsedTarget;
+                 debugLog(`[Response] Using manually set target message index: ${targetIndex}`);
+             }
+        }
+    }
+
     const originalInput = textarea.value; // Get current input
 
     // --- Get Setting ---
@@ -93,24 +108,30 @@ const guidedResponse = async () => {
     }
 
     // Execute the main stscript command
-    if (typeof SillyTavern !== 'undefined' && typeof SillyTavern.getContext === 'function') {
-        const context = SillyTavern.getContext();
+    const context = getContext();
+    if (context && typeof context.executeSlashCommandsWithOptions === 'function') {
+        // Apply Context Limit Truncation
+        const restore = truncateChatForContext(targetIndex);
+        
         try {
             // Execute the main command
             await context.executeSlashCommandsWithOptions(stscriptCommand);
 
             debugLog('[Response] Executed Command:', stscriptCommand); // Log the command
-            
         } catch (error) {
             console.error(`[GuidedGenerations][Response] Error executing Guided Response stscript: ${error}`);
         } finally {
+            // Restore chat
+            restore();
+            
+            if (typeof redisplayChat === 'function') {
+                await redisplayChat();
+            }
+
             // Always restore the input field from the shared state
             const restoredInput = getPreviousImpersonateInput();
             textarea.value = restoredInput;
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
-            if (typeof SillyTavern === 'undefined' || typeof SillyTavern.getContext !== 'function') {
-                debugLog(`[Response] Restoring input field after context error: "${restoredInput}"`);
-            }
         }
     } else {
         console.error('[GuidedGenerations][Response] SillyTavern context is not available.');
