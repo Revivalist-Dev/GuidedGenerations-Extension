@@ -8,18 +8,16 @@ import { guidedResponse } from './scripts/guidedResponse.js';
 import { guidedSwipe } from './scripts/guidedSwipe.js';
 import { guidedContinue, undoLastGuidedAddition, revertToOriginalGuidedContinue, initGuidedContinueListeners } from './scripts/guidedContinue.js'; // Added initGuidedContinueListeners, undoLastGuidedAddition, revertToOriginalGuidedContinue
 import { guidedImpersonate } from './scripts/guidedImpersonate.js';
-// Removed 2nd and 3rd person imports as they are now consolidated
-// Import the new Update Character function
-import { updateCharacter } from './scripts/persistentGuides/updateCharacter.js';
 // Import the new Custom Auto Guide
 import customAutoGuide from './scripts/persistentGuides/customAutoGuide.js';
 // Import necessary functions/objects from SillyTavern
 import { getContext, loadExtensionSettings, extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js'; 
+export { extension_settings };
 // Import Preset Manager
 import { getPresetManager } from '../../../../scripts/preset-manager.js';
 import { loadSettingsPanel } from './scripts/settingsPanel.js';
 import { showVersionNotification } from './scripts/ui/versionNotificationPopup.js';
-import { getProfileList } from './scripts/persistentGuides/guideExports.js';
+import { getProfileList, handleGuidedRewrite } from './scripts/persistentGuides/guideExports.js';
 
 // Import auto-triggerable guides
 import thinkingGuide from './scripts/persistentGuides/thinkingGuide.js';
@@ -217,8 +215,15 @@ export const defaultSettings = {
     integrateQrBar: true, // Default on: Toggle for QR bar integration
     debugMode: false, // Default off: Toggle for debug logging
     persistentGuidesInChatlog: true, // Default on: Show persistent guides in chatlog
-    injectionEndRole: 'system', // NEW SETTING: Default role for non-chat injections
-    contextMessageCount: 0, // NEW SETTING: 0 means all previous messages, >0 limits context
+    injectionEndRole: 'system',
+    contextMessageCount: 0,
+    profileRewrite: '',
+    presetRewrite: '',
+    promptRewrite: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style and length. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
+    promptShorten: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Shorten it by roughly 20%.[/INST]',
+    promptExpand: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Lengthen it by roughly 20%.[/INST]',
+    promptCustom: '[INST]Rewrite this section of text: """{{rewrite}}""" according to the following instructions: "{{input}}". Keep the general style. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
+    highlightDuration: 3000,
     // Profile and Preset settings for each guide
     profileClothes: '', // Profile for Clothes Guide
     presetClothes: '',
@@ -428,7 +433,7 @@ async function updateSettingsUI() {
             const profileKeys = ['profileClothes','profileState','profileThinking','profileSituational','profileRules',
              'profileCustom','profileCorrections','profileSpellchecker','profileEditIntros',
              'profileImpersonate1st','profileImpersonate2nd','profileImpersonate3rd',
-             'profileCustomAuto','profileFun','profileTrackerDetermine','profileTrackerUpdate'
+             'profileCustomAuto','profileFun','profileTrackerDetermine','profileTrackerUpdate', 'profileRewrite'
             ];
             
             profileKeys.forEach(key => {
@@ -464,7 +469,7 @@ async function updateSettingsUI() {
         ['presetClothes','presetState','presetThinking','presetSituational','presetRules',
          'presetCustom','presetCorrections','presetSpellchecker','presetEditIntros',
          'presetImpersonate1st','presetImpersonate2nd','presetImpersonate3rd',
-         'presetCustomAuto','presetFun','presetTrackerDetermine','presetTrackerUpdate'
+         'presetCustomAuto','presetFun','presetTrackerDetermine','presetTrackerUpdate', 'presetRewrite'
         ].forEach(async (key) => {
             const select = document.getElementById(key);
             if (select) {
@@ -489,7 +494,7 @@ async function updateSettingsUI() {
         });
 
         // Populate guide prompt override textareas
-        ['promptClothes','promptState','promptThinking','promptSituational','promptRules','promptCorrections','promptSpellchecker','promptImpersonate1st','promptImpersonate2nd','promptImpersonate3rd','promptGuidedResponse','promptGuidedSwipe','promptGuidedContinue','customAutoGuidePrompt'].forEach(key => {
+        ['promptClothes','promptState','promptThinking','promptSituational','promptRules','promptCorrections','promptSpellchecker','promptImpersonate1st','promptImpersonate2nd','promptImpersonate3rd','promptGuidedResponse','promptGuidedSwipe','promptGuidedContinue','customAutoGuidePrompt', 'promptRewrite', 'promptShorten', 'promptExpand', 'promptCustom'].forEach(key => {
             const textarea = document.getElementById(`gg_${key}`);
             if (textarea) {
                 textarea.value = extension_settings[extensionName][key] ?? defaultSettings[key] ?? '';
@@ -497,7 +502,7 @@ async function updateSettingsUI() {
         });
 
         // Populate depth number input fields
-        ['depthPromptClothes', 'depthPromptState', 'depthPromptThinking', 'depthPromptCustomAuto', 'depthPromptSituational', 'depthPromptRules', 'depthPromptCorrections', 'depthPromptGuidedResponse', 'depthPromptGuidedSwipe', 'contextMessageCount'].forEach(key => {
+        ['depthPromptClothes', 'depthPromptState', 'depthPromptThinking', 'depthPromptCustomAuto', 'depthPromptSituational', 'depthPromptRules', 'depthPromptCorrections', 'depthPromptGuidedResponse', 'depthPromptGuidedSwipe', 'contextMessageCount', 'highlightDuration'].forEach(key => {
             const input = document.getElementById(`gg_${key}`);
             if (input) {
                 input.value = extension_settings[extensionName][key] ?? defaultSettings[key] ?? 0; // Default to 0 if undefined
@@ -1866,7 +1871,120 @@ $(document).ready(async function () {
 
     // Check extension version and notify if updated
     checkVersionAndNotify();
+
+    // Initialize Rewrite functionality
+    initRewriteMenu();
+    
+    // Initialize Undo Logic Exposure
+    import('./scripts/guidedRewrite.js').then(module => {
+        if (module.initRewriteUndo) {
+            module.initRewriteUndo();
+        }
+    });
 }); // END OF $(document).ready()
+
+// --- Rewrite Menu Logic ---
+let ggRewriteMenu = null;
+
+function initRewriteMenu() {
+    document.addEventListener('selectionchange', () => {
+        setTimeout(processSelection, 50);
+    });
+    document.addEventListener('mousedown', (e) => {
+        if (ggRewriteMenu && !ggRewriteMenu.contains(e.target)) {
+            removeGGREwriteMenu();
+        }
+    });
+    
+    // Reposition menu on scroll
+    const chatContainer = document.getElementById('chat');
+    if (chatContainer) {
+        chatContainer.addEventListener('scroll', positionGGREwriteMenu);
+    }
+}
+
+function processSelection() {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    removeGGREwriteMenu();
+
+    if (selectedText.length > 0) {
+        const range = selection.getRangeAt(0);
+        const startMesText = range.startContainer.parentElement?.closest('.mes_text');
+        const endMesText = range.endContainer.parentElement?.closest('.mes_text');
+
+        if (startMesText && endMesText && startMesText === endMesText) {
+            createGGREwriteMenu();
+        }
+    }
+}
+
+function createGGREwriteMenu() {
+    removeGGREwriteMenu();
+
+    ggRewriteMenu = document.createElement('ul');
+    ggRewriteMenu.className = 'gg-ctx-menu';
+    
+    const options = [
+        { name: 'Rewrite', icon: 'fa-pencil-alt' },
+        { name: 'Shorten', icon: 'fa-compress-arrows-alt' },
+        { name: 'Expand', icon: 'fa-expand-arrows-alt' },
+        { name: 'Custom', icon: 'fa-magic' }
+    ];
+
+    options.forEach(opt => {
+        const li = document.createElement('li');
+        li.className = 'gg-ctx-item interactable';
+        li.innerHTML = `<i class="fa-solid ${opt.icon}"></i> ${opt.name}`;
+        li.addEventListener('mousedown', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const option = opt.name;
+            let customInstructions = null;
+            if (option === 'Custom') {
+                customInstructions = await getContext().callPopup('Enter custom rewrite instructions:', 'input');
+                if (!customInstructions) return;
+            }
+            await handleGuidedRewrite(option, customInstructions);
+            removeGGREwriteMenu();
+        });
+        ggRewriteMenu.appendChild(li);
+    });
+
+    document.body.appendChild(ggRewriteMenu);
+    positionGGREwriteMenu();
+}
+
+function positionGGREwriteMenu() {
+    if (!ggRewriteMenu) return;
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + window.scrollY + 5;
+    
+    // Viewport safety
+    if (left + ggRewriteMenu.offsetWidth > window.innerWidth) {
+        left = window.innerWidth - ggRewriteMenu.offsetWidth - 10;
+    }
+    if (top + ggRewriteMenu.offsetHeight > window.innerHeight) {
+        top = rect.top + window.scrollY - ggRewriteMenu.offsetHeight - 5;
+    }
+
+    ggRewriteMenu.style.left = `${left}px`;
+    ggRewriteMenu.style.top = `${top}px`;
+}
+
+function removeGGREwriteMenu() {
+    if (ggRewriteMenu) {
+        ggRewriteMenu.remove();
+        ggRewriteMenu = null;
+    }
+}
 
 // Export settings helpers for settingsPanel.js import
 export { loadSettings, updateSettingsUI, addSettingsEventListeners };
@@ -1926,28 +2044,38 @@ function getGuidedGenerationTargetMessageId() {
 
 // Initialize the "Set as Target" button using template injection
 function initializeTargetButton() {
-    const buttonHtml = `
+    const targetButtonHtml = `
         <div title="Set as Guided Generation Target" class="mes_button guided_target_button fa-solid fa-crosshairs interactable" tabindex="0" role="button"></div>
+    `;
+
+    const undoButtonHtml = `
+        <div title="Undo Last Rewrite" class="mes_button guided_undo_rewrite_button fa-solid fa-rotate-left interactable" tabindex="0" role="button" style="display:none;"></div>
     `;
 
     // 1. Inject into the template for future messages
     const $templateTarget = $("#message_template .mes_buttons .extraMesButtons");
     if ($templateTarget.length) {
-        $templateTarget.prepend(buttonHtml);
-        debugLog(`[${extensionName}] Injected target button into message template.`);
+        $templateTarget.prepend(undoButtonHtml);
+        $templateTarget.prepend(targetButtonHtml);
+        debugLog(`[${extensionName}] Injected target and undo buttons into message template.`);
     } else {
-        console.warn(`[${extensionName}] Could not find #message_template .extraMesButtons to inject target button.`);
+        console.warn(`[${extensionName}] Could not find #message_template .extraMesButtons to inject buttons.`);
     }
 
     // 2. Inject into existing messages (if any)
     $("#chat .mes").each(function() {
         const $extraButtons = $(this).find(".extraMesButtons");
-        if ($extraButtons.length && $extraButtons.find(".guided_target_button").length === 0) {
-            $extraButtons.prepend(buttonHtml);
+        if ($extraButtons.length) {
+             if ($extraButtons.find(".guided_target_button").length === 0) {
+                 $extraButtons.prepend(targetButtonHtml);
+             }
+             if ($extraButtons.find(".guided_undo_rewrite_button").length === 0) {
+                 $extraButtons.prepend(undoButtonHtml);
+             }
         }
     });
 
-    // 3. Setup delegated event listener on the chat container
+    // 3. Setup delegated event listener on the chat container for Target Button
     $("#chat").off("click", ".guided_target_button").on("click", ".guided_target_button", function(e) {
         e.stopPropagation();
         const $btn = $(this);
@@ -1963,6 +2091,18 @@ function initializeTargetButton() {
             } else {
                 setGuidedGenerationTargetMessageId(mesId);
             }
+        }
+    });
+
+    // 4. Setup delegated event listener on the chat container for Undo Button
+    $("#chat").off("click", ".guided_undo_rewrite_button").on("click", ".guided_undo_rewrite_button", function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const $mes = $btn.closest(".mes");
+        const mesId = $mes.attr("mesid");
+
+        if (window.GuidedGenerations && typeof window.GuidedGenerations.undoRewrite === 'function') {
+            window.GuidedGenerations.undoRewrite(mesId);
         }
     });
 }

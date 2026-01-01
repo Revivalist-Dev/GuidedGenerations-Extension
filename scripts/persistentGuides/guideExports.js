@@ -100,7 +100,14 @@ const defaultSettings = {
     showRevertButton: false,
     integrateQrBar: true,
     debugMode: false,
-    injectionEndRole: 'system'
+    injectionEndRole: 'system',
+    profileRewrite: '',
+    presetRewrite: '',
+    promptRewrite: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style and length. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
+    promptShorten: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Shorten it by roughly 20%.[/INST]',
+    promptExpand: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Lengthen it by roughly 20%.[/INST]',
+    promptCustom: '[INST]Rewrite this section of text: """{{rewrite}}""" according to the following instructions: "{{input}}". Keep the general style. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
+    highlightDuration: 3000
 };
 
 // Utility functions
@@ -121,13 +128,13 @@ import funGuide from './funGuide.js';
 import trackerGuide from './trackerGuide.js';
 import { executeTracker, checkAndExecuteTracker, createTrackerNote } from './trackerLogic.js';
 import { runGuideScript } from './runGuide.js';
-import { updateCharacter } from './updateCharacter.js';
 
 // Tool functions
 import { corrections } from '../tools/corrections.js';
 import { spellchecker } from '../tools/spellchecker.js';
 import editIntros from '../tools/editIntros.js';
 import clearInput from '../tools/clearInput.js';
+import { handleGuidedRewrite } from '../guidedRewrite.js';
 
 // Main script functions
 import { guidedSwipe, generateNewSwipe } from '../guidedSwipe.js';
@@ -189,13 +196,13 @@ export {
     flushGuides,
     showGuides,
     editGuides,
-    updateCharacter,
     
     // Tools
     clearInput,
     corrections,
     editIntros,
     spellchecker,
+    handleGuidedRewrite,
     
     // Main script functions
     guidedSwipe,

@@ -62,10 +62,18 @@ See [`JSDoc.md`](./JSDoc.md) for code-level documentation.
 ### 🔖 Tools Menu
 *Access additional utilities*
   - **🔧 Corrections:** Edit the last AI message with targeted instructions.
+  - **✨ Surgical Rewrite (NEW!):** Select text in any message to trigger a floating menu. Rewrite, shorten, or expand sections while maintaining context.
   - **✅ Spellchecker:** Polish your input for grammar, punctuation, and flow.
   - **✈️ Simple Send:** Send input as a user message without triggering a model response.
   - **🖋️ Edit Intros:** Rewrite or transform introductory messages on demand.
   - **↩️ Input Recovery:** Restore previously cleared input.
+
+### 🆕 Advanced Surgical Rewrite Implementation
+The Surgical Rewrite feature has been modernized and enhanced:
+- **Profile & Preset Switching**: Automatically switch to high-precision models (like Claude or GPT-4) specifically for rewrite tasks, then switch back to your RP model.
+- **Undo/Revert System**: Every rewrite is tracked, allowing you to undo changes or revert to the original text directly from the message interface.
+- **Context Awareness**: Seamlessly maps DOM selections to raw message text, ensuring formatting is preserved.
+- **Public API Integration**: Now utilizes SillyTavern's standard `generateRaw` and `saveChat` APIs for maximum compatibility.
 
 ---
 
@@ -89,6 +97,7 @@ See [`JSDoc.md`](./JSDoc.md) for code-level documentation.
 ## ⚙️ Settings
 
 - **Context Message Limit (NEW!):** Restrict how many previous messages are included as context for generations (0 for all). This helps focus the AI and manage token usage.
+- **Surgical Rewrite (NEW!):** Select text in any message to trigger a floating menu for precision edits. Respects manual targeting and context limits.
 - **Impersonate Template (NEW!):** Choose your default perspective template (1st, 2nd, 3rd, or custom) for the Guided Impersonate tool.
 - **Auto-Trigger**: Toggle automatic execution of Thinking, State, and Clothes guides before each response.
 - **Buttons Visibility**: Choose which action buttons to display in the UI.
@@ -114,6 +123,13 @@ This project is licensed under the GNU General Public License v3.0. See the [LIC
 ## Contributing
 
 Contributions are welcome! Submit pull requests or open issues for improvements, features, or documentation. For questions or feedback, open an issue in this repository.
+
+---
+
+## Acknowledgments
+
+- **Samueras**: Original creator of the Guided Generations toolset.
+- **[splitclover/rewrite-extension](https://github.com/splitclover/rewrite-extension)**: The Surgical Rewrite feature includes an implementation based on the original `rewrite-extension`, which has been integrated here following its deprecation to ensure continued support and enhanced functionality within the Guided Generations ecosystem.
 
 ---
 

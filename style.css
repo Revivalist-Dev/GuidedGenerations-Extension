@@ -614,6 +614,50 @@
 
 /* --- Guided Generations Target Message and Button Styles --- */
 
+/* Rewrite Highlight */
+.animated-highlight {
+    background-color: rgba(255, 255, 0, 0.3);
+    border-bottom: 2px solid gold;
+    transition: background-color 0.5s ease;
+}
+
+/* Floating Context Menu */
+.gg-ctx-menu {
+    position: fixed;
+    z-index: 10000;
+    background-color: var(--SmartThemeBlurTintColor);
+    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength));
+    backdrop-filter: blur(var(--SmartThemeBlurStrength));
+    border: 1px solid var(--SmartThemeBorderColor, var(--SmartThemeBodyColor));
+    border-radius: 10px;
+    box-shadow: 0 4px 15px var(--SmartThemeShadowColor);
+    padding: 5px 0;
+    list-style: none;
+    margin: 0;
+    min-width: 120px;
+}
+
+.gg-ctx-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    color: var(--SmartThemeBodyColor);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background-color 0.2s;
+}
+
+.gg-ctx-item:hover {
+    background-color: var(--SmartThemeHover);
+    color: var(--SmartThemeUi);
+}
+
+.gg-ctx-item i {
+    width: 16px;
+    text-align: center;
+}
+
 /* Highlight the message row that is set as the guided generation target */
 .mes_row.guided-generation-target {
     /* Use a subtle background color and border to indicate target */
@@ -647,4 +691,18 @@
     background-color: var(--SmartThemeActColor, #00bfff); /* Use a slightly brighter accent color on hover */
     color: var(--SmartThemeBg, #ffffff);
     opacity: 1;
+}
+
+/* Style for the Undo Rewrite Button */
+.guided_undo_rewrite_button {
+    color: var(--SmartThemeBodyColor);
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+    /* Optional: add a specific color for the undo action, e.g., warning color */
+    /* color: #f0ad4e; */ 
+}
+
+.guided_undo_rewrite_button:hover {
+    color: var(--SmartThemeAccentColor);
+    transform: rotate(-45deg); /* Visual cue for "undo/rewind" */
 }
