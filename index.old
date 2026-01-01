@@ -1,5 +1,5 @@
-import { eventSource, saveSettingsDebounced } from '/script.js';
-import { getContext, loadExtensionSettings, extension_settings, renderExtensionTemplateAsync } from '/scripts/extensions.js';
+import { eventSource, saveSettingsDebounced } from '../../../../script.js';
+import { getContext, loadExtensionSettings, extension_settings, renderExtensionTemplateAsync } from '../../../extensions.js';
 
 // Centralized Utility Managers
 import { getSettings, updateSetting, migrateProfileSettings } from './scripts/utils/settingsManager.js';
@@ -13,17 +13,6 @@ import { guidedResponse } from './scripts/guidedResponse.js';
 import { guidedSwipe } from './scripts/guidedSwipe.js';
 import { guidedContinue, undoLastGuidedAddition, revertToOriginalGuidedContinue, initGuidedContinueListeners } from './scripts/guidedContinue.js';
 import { guidedImpersonate } from './scripts/guidedImpersonate.js';
-import customAutoGuide from './scripts/persistentGuides/customAutoGuide.js'; // Default export import
-import { getPresetManager } from '/scripts/preset-manager.js';
-import { loadSettingsPanel } from './scripts/settingsPanel.js';
-import { showVersionNotification } from './scripts/ui/versionNotificationPopup.js';
-import { getProfileList, handleGuidedRewrite } from './scripts/utils/exportManager.js';
-
-// Import auto-triggerable guides
-import thinkingGuide from './scripts/persistentGuides/thinkingGuide.js';
-import stateGuide from './scripts/persistentGuides/stateGuide.js';
-import clothesGuide from './scripts/persistentGuides/clothesGuide.js';
-import { checkAndExecuteTracker } from './scripts/persistentGuides/trackerLogic.js';
 
 // Constants
 export const extensionName = "GuidedGenerations-Extension";
@@ -33,61 +22,60 @@ export { extension_settings };
 let previousImpersonateInput = '';
 let lastImpersonateResult = '';
 let impersonateTemplates = [];
-let debugMessages = [];
-const MAX_DEBUG_MESSAGES = 1000;
 
-// Default Settings (imported to avoid duplication if we want, but keeping here for legacy compatibility)
-import { defaultSettings } from './scripts/utils/constants.js';
-export { defaultSettings };
+// Default Settings
+export const defaultSettings = {
+    autoTriggerClothes: false,
+    autoTriggerState: false,
+    autoTriggerThinking: false,
+    enableAutoCustomAutoGuide: false,
+    showImpersonate: true,
+    impersonateTemplate: '1st',
+    showGuidedContinue: false,
+    showGuidedResponse: true,
+    showGuidedSwipe: true,
+    showSimpleSendButton: false,
+    showRecoverInputButton: false,
+    showEditIntrosButton: false,
+    showCorrectionsButton: false,
+    showSpellcheckerButton: false,
+    showClearInputButton: false,
+    showUndoButton: false,
+    showRevertButton: false,
+    integrateQrBar: true,
+    debugMode: false,
+    persistentGuidesInChatlog: true,
+    injectionEndRole: 'system',
+    contextMessageCount: 0,
+    profileRewrite: '',
+    presetRewrite: '',
+    promptRewrite: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style and length. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
+    promptShorten: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Shorten it by roughly 20%.[/INST]',
+    promptExpand: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Lengthen it by roughly 20%.[/INST]',
+    promptCustom: '[INST]Rewrite this section of text: """{{rewrite}}""" according to the following instructions: "{{input}}". Keep the general style. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
+    highlightDuration: 3000,
+    LastPatchNoteVersion: '1.4.3'
+};
 
 /**
  * Conditional logging utilities using the centralized settings.
  */
-function addToDebugBuffer(level, ...args) {
-    const timestamp = new Date().toLocaleTimeString();
-    const message = args.map(arg => {
-        try {
-            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
-        } catch (e) {
-            return '[Unserializable Object]';
-        }
-    }).join(' ');
-    
-    const formattedMsg = `[${level}] ${message}`;
-    debugMessages.push(`${timestamp} ${formattedMsg}`);
-    
-    if (debugMessages.length > MAX_DEBUG_MESSAGES) {
-        debugMessages.shift();
-    }
-}
-
 export function debugLog(...args) {
     if (getSettings().debugMode) {
         console.log(`[${extensionName}][DEBUG]`, ...args);
     }
-    addToDebugBuffer('DEBUG', ...args);
 }
 
 export function debugWarn(...args) {
     if (getSettings().debugMode) {
-        console.warn(`[${extensionName}][WARN]`, ...args);
+        console.warn(`[${extensionName}][DEBUG]`, ...args);
     }
-    addToDebugBuffer('WARN', ...args);
 }
 
 export function debugError(...args) {
     if (getSettings().debugMode) {
-        console.error(`[${extensionName}][ERROR]`, ...args);
+        console.error(`[${extensionName}][DEBUG]`, ...args);
     }
-    addToDebugBuffer('ERROR', ...args);
-}
-
-export function getDebugMessagesAsText() {
-    return debugMessages.join('\n');
-}
-
-export function clearDebugMessages() {
-    debugMessages = [];
 }
 
 /**
@@ -106,7 +94,7 @@ export async function handleAutoTrigger(type, generateArgsObject, dryRun) {
     debugLog(`Autotrigger execution starting.`);
 
     // Lazy load guide functional logic
-    const exports = await safeImport('./scripts/utils/exportManager.js', 'Guide Engine');
+    const exports = await safeImport('./scripts/persistentGuides/guideExports.js', 'Guide Engine');
     if (!exports) return;
 
     if (settings.autoTriggerThinking) await exports.thinkingGuide(true);
@@ -136,12 +124,6 @@ export function getImpersonateTemplate(id) {
     return impersonateTemplates.find(t => t.id === id);
 }
 
-// --- SHARED STATE GETTERS/SETTERS ---
-export function getPreviousImpersonateInput() { return previousImpersonateInput; }
-export function setPreviousImpersonateInput(value) { previousImpersonateInput = value; }
-export function getLastImpersonateResult() { return lastImpersonateResult; }
-export function setLastImpersonateResult(value) { lastImpersonateResult = value; }
-
 /**
  * Main Setup function
  */
@@ -151,21 +133,14 @@ async function setup() {
     migrateProfileSettings();
     
     // Core UI Logic initialization
-    const { initializeUI } = await safeImport('./scripts/ui/uiManager.js', 'UI Manager') || {};
-    if (initializeUI) {
-        await initializeUI();
-    } else {
-        debugError("Failed to import UI Manager. Extension UI may not load correctly.");
-    }
+    const { initializeUI } = await safeImport('./scripts/utils/uiManager.js', 'UI Manager') || {};
+    if (initializeUI) initializeUI();
     
     initGuidedContinueListeners();
     initializeEventListeners(); // centralize all ST events
     
     // Initial counter update
     updatePersistentGuideCounter();
-
-     // Load Settings Panel (delayed to ensure context)
-    setTimeout(() => loadSettingsPanel(getContext()), 1000);
 }
 
 /**

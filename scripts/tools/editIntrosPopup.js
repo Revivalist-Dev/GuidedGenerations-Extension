@@ -31,7 +31,7 @@ const EDIT_INTROS_OPTIONS = {
 };
 
 import { generateNewSwipe } from '../guidedSwipe.js';
-import { extensionName, getContext, extension_settings, handleSwitching, debugLog } from '../persistentGuides/guideExports.js'; // Import from central hub
+import { extensionName, getContext, extension_settings, handleSwitching, debugLog } from '../utils/exportManager.js'; // Import from central hub
 
 // Class to handle the popup functionality
 export class EditIntrosPopup {

@@ -1,4 +1,4 @@
-import { getContext, extension_settings, extensionName, handleSwitching, debugLog, createTrackerNote } from './guideExports.js'; // Import from central hub
+import { getContext, extension_settings, extensionName, handleSwitching, debugLog, createTrackerNote } from '../utils/exportManager.js'; // Import from central hub
 
 /**
  * Generic runner for Persistent Guides STScript commands.

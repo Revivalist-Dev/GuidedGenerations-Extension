@@ -1,6 +1,6 @@
 // scripts/guidedImpersonate.js
-import { getContext, extension_settings, extensionName, debugLog, getPreviousImpersonateInput, setPreviousImpersonateInput, getLastImpersonateResult, setLastImpersonateResult, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
-import { chat, redisplayChat } from '../../../../../script.js';
+import { getContext, extension_settings, extensionName, debugLog, getPreviousImpersonateInput, setPreviousImpersonateInput, getLastImpersonateResult, setLastImpersonateResult, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { chat, redisplayChat } from '/script.js';
 
 /**
  * Consolidated Guided Impersonate function.

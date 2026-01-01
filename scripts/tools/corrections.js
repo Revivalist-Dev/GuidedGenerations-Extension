@@ -1,7 +1,7 @@
 /**
  * @file Contains the logic for the Corrections tool.
  */
-import { getContext, extension_settings, extensionName, debugLog, setPreviousImpersonateInput, generateNewSwipe, handleSwitching } from '../persistentGuides/guideExports.js';
+import { getContext, extension_settings, extensionName, debugLog, setPreviousImpersonateInput, generateNewSwipe, handleSwitching } from '../utils/exportManager.js';
 
 // Helper function for delays (copied from guidedSwipe.js)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));

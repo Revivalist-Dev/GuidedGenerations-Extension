@@ -3,7 +3,7 @@
 /**
  * Edit Guides Popup - Handles UI for editing guide injections.
  */
-import { extension_settings, extensionName, debugLog } from './guideExports.js'; // Import from central hub
+import { extension_settings, extensionName, debugLog } from '../utils/exportManager.js'; // Import from central hub
 
 export class EditGuidesPopup {
     constructor() {

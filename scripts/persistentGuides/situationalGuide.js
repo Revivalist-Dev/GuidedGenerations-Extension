@@ -1,7 +1,7 @@
 /**
  * @file Contains the logic for the Situational Guide option in the Persistent Guides menu.
  */
-import { isGroupChat, getContext, extension_settings, extensionName } from './guideExports.js'; // Import from central hub
+import { isGroupChat, getContext, extension_settings, extensionName } from '../utils/exportManager.js'; // Import from central hub
 import { runGuideScript } from './runGuide.js';
 /**
  * @param {boolean} isAuto - Whether this guide is auto-triggered (true) or manual (false)

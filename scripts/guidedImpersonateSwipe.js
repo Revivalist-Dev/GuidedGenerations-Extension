@@ -1,6 +1,6 @@
 // scripts/guidedImpersonateSwipe.js
-import { getContext, debugLog, setLastImpersonateResult, saveChatConditional, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
-import { chat, redisplayChat } from '../../../../../script.js';
+import { getContext, debugLog, setLastImpersonateResult, saveChatConditional, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { chat, redisplayChat } from '/script.js';
 
 /**
  * Generates an impersonated response and applies it as a swipe to a user message.

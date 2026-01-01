@@ -3,7 +3,7 @@
  * @description Handles the automatic execution of trackers based on chat metadata configuration.
  */
 
-import { getContext, extensionName, debugLog, handleSwitching } from './guideExports.js'; // Import from central hub
+import { getContext, extensionName, debugLog, handleSwitching } from '../utils/exportManager.js'; // Import from central hub
 
 /**
  * Executes the tracker logic automatically when triggered

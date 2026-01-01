@@ -1,7 +1,7 @@
 /**
  * @file Contains the logic for the Spellcheck tool.
  */
-import { getContext, extension_settings, extensionName, debugLog, handleSwitching } from '../persistentGuides/guideExports.js';
+import { getContext, extension_settings, extensionName, debugLog, handleSwitching } from '../utils/exportManager.js';
 
 const spellchecker = async () => {
     const textarea = document.getElementById('send_textarea');

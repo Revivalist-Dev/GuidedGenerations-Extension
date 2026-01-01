@@ -1,5 +1,5 @@
 // scripts/inputRecovery.js
-import { getPreviousImpersonateInput, debugLog } from './persistentGuides/guideExports.js'; // Import from central hub
+import { getPreviousImpersonateInput, debugLog } from './utils/exportManager.js'; // Import from central hub
 
 const recoverInput = () => {
 	debugLog('[InputRecovery] Button clicked');

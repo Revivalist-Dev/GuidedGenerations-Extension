@@ -6,7 +6,7 @@
  * Executes the Show Guides script to display all active guides.
  * Shows the content of all active guide injections in a popup.
  */
-import { debugLog } from './guideExports.js'; // Import from central hub
+import { debugLog } from '../utils/exportManager.js'; // Import from central hub
 
 const showGuides = () => {
 	debugLog('[ShowGuides] Button clicked');

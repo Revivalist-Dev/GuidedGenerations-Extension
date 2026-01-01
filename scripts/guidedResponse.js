@@ -1,8 +1,8 @@
 /**
  * @file Contains the logic for the Guided Response button.
  */
-import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
-import { chat, redisplayChat } from '../../../../../script.js';
+import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { chat, redisplayChat } from '/script.js';
 
 // Import the guide scripts for direct execution
 import thinkingGuide from './persistentGuides/thinkingGuide.js'; // Correct relative path

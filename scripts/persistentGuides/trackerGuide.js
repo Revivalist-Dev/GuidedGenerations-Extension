@@ -3,7 +3,7 @@
  * @description Opens a popup for creating and configuring trackers to monitor specific aspects of your story or characters.
  */
 
-import { getContext, extensionName, debugLog } from './guideExports.js'; // Import from central hub
+import { getContext, extensionName, debugLog } from '../utils/exportManager.js'; // Import from central hub
 import { executeTracker } from './trackerLogic.js';
 
 /**

@@ -1,6 +1,10 @@
 // scripts/settingsPanel.js
 
-import { extensionName, loadSettings, updateSettingsUI, addSettingsEventListeners, defaultSettings, debugLog, debugWarn, renderExtensionTemplateAsync, debugProfileSystem } from './persistentGuides/guideExports.js'; // Import from central hub
+import { extensionName, defaultSettings } from './utils/constants.js';
+import { extension_settings, debugLog, debugWarn } from '../index.js';
+import { getSettings, updateSetting } from './utils/settingsManager.js';
+import { renderExtensionTemplateAsync, getContext } from '/scripts/extensions.js';
+import { getProfileList, getPresetsForApiType, getProfileApiType, getCurrentProfile } from './utils/presetUtils.js';
 
 /**
  * Loads and renders the settings HTML for the extension.
@@ -30,211 +34,221 @@ export async function loadSettingsPanel() {
         const settingsHtml = await renderExtensionTemplateAsync(`third-party/${extensionName}`, 'settings');
         $(container).html(settingsHtml);
 
-            // Remove any manual clear buttons to avoid duplicates
-            container.querySelectorAll('.gg-clear-button').forEach(btn => btn.remove());
+        // Remove any manual clear buttons to avoid duplicates
+        container.querySelectorAll('.gg-clear-button').forEach(btn => btn.remove());
 
-            setTimeout(async () => {
-                loadSettings();
-                updateSettingsUI();
-                addSettingsEventListeners();
+        setTimeout(async () => {
+            loadSettings();
+            await updateSettingsUI();
+            addSettingsEventListeners();
 
-                // Initialize event listeners for profile and preset switching
-                try {
-                    const { initializeEventListeners } = await import('./persistentGuides/guideExports.js');
-                    initializeEventListeners();
-                    debugLog(`[${extensionName}] Event listeners initialized for profile/preset switching in settings panel`);
-                } catch (error) {
-                    debugWarn(`[${extensionName}] Could not initialize event listeners in settings panel:`, error);
+            // Initialize event listeners for profile and preset switching
+            try {
+                const { initializeEventListeners } = await import('./utils/presetUtils.js');
+                initializeEventListeners();
+                debugLog(`[${extensionName}] Event listeners initialized for profile/preset switching in settings panel`);
+            } catch (error) {
+                debugWarn(`[${extensionName}] Could not initialize event listeners in settings panel:`, error);
+            }
+
+            // Setup preset and clear buttons with native event handlers
+            const presetButtons = container.querySelectorAll('.gg-preset-button');
+            presetButtons.forEach(btn => {
+                let clearBtn = btn.nextElementSibling;
+                if (!clearBtn || !clearBtn.classList.contains('gg-clear-button')) {
+                    clearBtn = document.createElement('button');
+                    clearBtn.type = 'button';
+                    clearBtn.className = 'gg-clear-button';
+                    clearBtn.setAttribute('data-target', btn.getAttribute('data-target'));
+                    clearBtn.textContent = '✖';
+                    clearBtn.style.marginLeft = '4px';
+                    clearBtn.style.color = 'red';
+                    btn.insertAdjacentElement('afterend', clearBtn);
+                } else {
+                    clearBtn.setAttribute('data-target', btn.getAttribute('data-target'));
                 }
 
-                // Setup preset and clear buttons with native event handlers
-                const presetButtons = container.querySelectorAll('.gg-preset-button');
-                presetButtons.forEach(btn => {
-                    // Use existing clear button if present, else create one
-                    let clearBtn = btn.nextElementSibling;
-                    if (!clearBtn || !clearBtn.classList.contains('gg-clear-button')) {
-                        clearBtn = document.createElement('button');
-                        clearBtn.type = 'button';
-                        clearBtn.className = 'gg-clear-button';
-                        clearBtn.setAttribute('data-target', btn.getAttribute('data-target'));
-                        clearBtn.textContent = '✖';
-                        clearBtn.style.marginLeft = '4px';
-                        clearBtn.style.color = 'red';
-                        btn.insertAdjacentElement('afterend', clearBtn);
-                    } else {
-                        clearBtn.setAttribute('data-target', btn.getAttribute('data-target'));
+                btn.addEventListener('click', () => {
+                    const key = btn.getAttribute('data-target');
+                    const input = document.getElementById(`gg_${key}`);
+                    if (input) {
+                        input.value = 'GGSytemPrompt';
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
                     }
-
-                    // Preset fill click
-                    btn.addEventListener('click', () => {
-                        const key = btn.getAttribute('data-target');
-                        const input = document.getElementById(`gg_${key}`);
-                        if (input) {
-                            input.value = 'GGSytemPrompt';
-                            input.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                    });
-
-                    // Clear click
-                    clearBtn.addEventListener('click', () => {
-                        const key = clearBtn.getAttribute('data-target');
-                        const input = document.getElementById(`gg_${key}`);
-                        if (input) {
-                            input.value = '';
-                            input.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                    });
                 });
 
-                // Setup default buttons with native event handlers
-                const defaultButtons = container.querySelectorAll('.gg-default-button');
-                defaultButtons.forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const key = btn.getAttribute('data-target'); // e.g., 'promptGuidedSwipe'
-                        const input = document.getElementById(`gg_${key}`); // e.g., '#gg_promptGuidedSwipe'
-                        if (input && defaultSettings.hasOwnProperty(key)) {
-                            input.value = defaultSettings[key];
-                            // Trigger change event to ensure SillyTavern recognizes the update
-                            input.dispatchEvent(new Event('change', { bubbles: true })); 
-                        } else {
-                            debugWarn(`[${extensionName}] Could not find input for gg_${key} or default setting for ${key}`);
-                        }
-                    });
+                clearBtn.addEventListener('click', () => {
+                    const key = clearBtn.getAttribute('data-target');
+                    const input = document.getElementById(`gg_${key}`);
+                    if (input) {
+                        input.value = '';
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
                 });
+            });
 
-                // Setup debug profile system button
-                const debugButton = container.querySelector('#debugProfileSystem');
-                if (debugButton) {
-                    debugButton.addEventListener('click', async () => {
-                        try {
-                            const { debugProfileSystem } = await import('./persistentGuides/guideExports.js');
-                            await debugProfileSystem();
-                        } catch (error) {
-                            console.error(`[${extensionName}] Error importing debugProfileSystem:`, error);
-                        }
-                    });
-                }
-
-                // Setup refresh profile dropdowns button
-                const refreshButton = container.querySelector('#refreshProfileDropdowns');
-                if (refreshButton) {
-                    refreshButton.addEventListener('click', async () => {
-                        try {
-                            await updateSettingsUI();
-                        } catch (error) {
-                            console.error(`[${extensionName}] Error refreshing profile dropdowns:`, error);
-                        }
-                    });
-                }
-
-                // Setup debug logging buttons
-                const copyDebugLogsButton = container.querySelector('#gg_copyDebugLogs');
-                if (copyDebugLogsButton) {
-                    copyDebugLogsButton.addEventListener('click', async () => {
-                        try {
-                            const { getDebugMessagesAsText } = await import('./persistentGuides/guideExports.js');
-                            const debugText = getDebugMessagesAsText();
-                            
-                            if (debugText.trim() === '') {
-                                alert('No debug messages available. Enable debug logging and perform some actions to generate debug messages.');
-                                return;
-                            }
-                            
-                            // Try modern clipboard API first
-                            if (navigator.clipboard && window.isSecureContext) {
-                                await navigator.clipboard.writeText(debugText);
-                                alert('Debug logs copied to clipboard!');
-                            } else {
-                                // Fallback for older browsers or non-secure contexts
-                                const textArea = document.createElement('textarea');
-                                textArea.value = debugText;
-                                textArea.style.position = 'fixed';
-                                textArea.style.left = '-999999px';
-                                textArea.style.top = '-999999px';
-                                document.body.appendChild(textArea);
-                                textArea.focus();
-                                textArea.select();
-                                
-                                try {
-                                    const successful = document.execCommand('copy');
-                                    if (successful) {
-                                        alert('Debug logs copied to clipboard!');
-                                    } else {
-                                        throw new Error('Copy command failed');
-                                    }
-                                } catch (err) {
-                                    throw new Error('Copy command failed: ' + err.message);
-                                } finally {
-                                    document.body.removeChild(textArea);
-                                }
-                            }
-                        } catch (error) {
-                            console.error(`[${extensionName}] Error copying debug logs:`, error);
-                            alert('Failed to copy debug logs. Check console for details. Error: ' + error.message);
-                        }
-                    });
-                }
-
-                const downloadDebugLogsButton = container.querySelector('#gg_downloadDebugLogs');
-                if (downloadDebugLogsButton) {
-                    downloadDebugLogsButton.addEventListener('click', async () => {
-                        try {
-                            const { getDebugMessagesAsText } = await import('./persistentGuides/guideExports.js');
-                            const debugText = getDebugMessagesAsText();
-                            
-                            if (debugText.trim() === '') {
-                                alert('No debug messages available. Enable debug logging and perform some actions to generate debug messages.');
-                                return;
-                            }
-                            
-                            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                            const filename = `guided-generations-debug-${timestamp}.txt`;
-                            
-                            const blob = new Blob([debugText], { type: 'text/plain' });
-                            const url = URL.createObjectURL(blob);
-                            
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = filename;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                            
-                            alert(`Debug logs downloaded as ${filename}`);
-                        } catch (error) {
-                            console.error(`[${extensionName}] Error downloading debug logs:`, error);
-                            alert('Failed to download debug logs. Check console for details.');
-                        }
-                    });
-                }
-
-                const clearDebugLogsButton = container.querySelector('#gg_clearDebugLogs');
-                if (clearDebugLogsButton) {
-                    clearDebugLogsButton.addEventListener('click', async () => {
-                        try {
-                            const { clearDebugMessages } = await import('./persistentGuides/guideExports.js');
-                            clearDebugMessages();
-                            alert('Debug logs cleared!');
-                        } catch (error) {
-                            console.error(`[${extensionName}] Error clearing debug logs:`, error);
-                            alert('Failed to clear debug logs. Check console for details.');
-                        }
-                    });
-                }
-
-                // Static Raw checkboxes are defined in settings.html; dynamic insertion removed
-
-                // Set width on preset text inputs
-                container.querySelectorAll('.gg-setting-input[type="text"]').forEach(input => {
-                    input.style.minWidth = '200px';
+            // Setup default buttons
+            const defaultButtons = container.querySelectorAll('.gg-default-button');
+            defaultButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const key = btn.getAttribute('data-target');
+                    const input = document.getElementById(`gg_${key}`);
+                    if (input && defaultSettings.hasOwnProperty(key)) {
+                        input.value = defaultSettings[key];
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        debugWarn(`[${extensionName}] Could not find input for gg_${key} or default setting for ${key}`);
+                    }
                 });
+            });
 
-            }, 100);
+            // Setup refresh profile dropdowns button
+            const refreshButton = container.querySelector('#refreshProfileDropdowns');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', async () => {
+                    try {
+                        await updateSettingsUI();
+                    } catch (error) {
+                        console.error(`[${extensionName}] Error refreshing profile dropdowns:`, error);
+                    }
+                });
+            }
+
+            // Set width on preset text inputs
+            container.querySelectorAll('.gg-setting-input[type="text"]').forEach(input => {
+                input.style.minWidth = '200px';
+            });
+
+        }, 100);
     } catch (error) {
         console.error(`[${extensionName}] Error rendering settings template:`, error);
         if (container) {
             container.innerHTML = '<p>Error: Could not render settings template. Check browser console (F12).</p>';
         }
     }
+}
+
+/**
+ * Populates UI fields from extension settings.
+ */
+export function loadSettings() {
+    const settings = getSettings();
+    for (const key in settings) {
+        const id = `gg_${key}`;
+        const element = document.getElementById(id) || document.getElementById(key); // Check both prefixed and non-prefixed
+        if (!element) continue;
+
+        if (element.type === 'checkbox') {
+            element.checked = !!settings[key];
+        } else {
+            element.value = settings[key];
+        }
+    }
+    debugLog(`[${extensionName}] Settings loaded into UI.`);
+}
+
+/**
+ * Updates settings UI dropdowns (profiles and presets).
+ */
+export async function updateSettingsUI() {
+    try {
+        const profileList = await getProfileList();
+        const currentProfile = await getCurrentProfile();
+        const settings = getSettings();
+
+        // Get all profile select elements
+        const profileSelects = document.querySelectorAll('select[id^="profile"]');
+        for (const select of profileSelects) {
+            const key = select.id;
+            const currentValue = settings[key] || '';
+            
+            select.innerHTML = '<option value="">(Current Profile)</option>';
+            profileList.forEach(profileName => {
+                const option = document.createElement('option');
+                option.value = profileName;
+                option.text = profileName;
+                option.selected = profileName === currentValue;
+                select.appendChild(option);
+            });
+
+            // Also populate the corresponding preset dropdown
+            const presetId = key.replace('profile', 'preset');
+            const presetSelect = document.getElementById(presetId);
+            if (presetSelect) {
+                await updatePresetDropdown(presetSelect, currentValue || currentProfile, settings[presetId]);
+            }
+        }
+        debugLog(`[${extensionName}] Profile and preset dropdowns updated.`);
+    } catch (error) {
+        console.error(`[${extensionName}] Error updating settings UI:`, error);
+    }
+}
+
+/**
+ * Helper to update a preset dropdown based on a profile.
+ */
+async function updatePresetDropdown(select, profileName, currentValue) {
+    if (!profileName) {
+        select.innerHTML = '<option value="">None</option>';
+        return;
+    }
+
+    try {
+        const apiType = await getProfileApiType(profileName);
+        if (!apiType) {
+            select.innerHTML = '<option value="">(Select Profile First)</option>';
+            return;
+        }
+
+        const presets = await getPresetsForApiType(apiType);
+        select.innerHTML = '<option value="">None</option>';
+        
+        presets.forEach(preset => {
+            const option = document.createElement('option');
+            // Support both object and string formats from ST
+            const name = typeof preset === 'object' ? (preset.name || preset.id) : preset;
+            option.value = name;
+            option.text = name;
+            option.selected = name === currentValue;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        debugWarn(`[${extensionName}] Error updating presets for profile ${profileName}:`, error);
+    }
+}
+
+/**
+ * Attaches event listeners to all GG setting inputs.
+ */
+export function addSettingsEventListeners() {
+    const inputs = document.querySelectorAll('.gg-setting-input');
+    inputs.forEach(input => {
+        // Remove existing listener to avoid duplicates
+        input.removeEventListener('change', handleSettingChange);
+        input.addEventListener('change', handleSettingChange);
+    });
+
+    // Special handling for profile changes to update preset lists
+    const profileSelects = document.querySelectorAll('select[id^="profile"]');
+    profileSelects.forEach(select => {
+        select.addEventListener('change', async () => {
+            const presetId = select.id.replace('profile', 'preset');
+            const presetSelect = document.getElementById(presetId);
+            if (presetSelect) {
+                await updatePresetDropdown(presetSelect, select.value || await getCurrentProfile(), '');
+            }
+        });
+    });
+}
+
+/**
+ * Handles individual setting change.
+ */
+async function handleSettingChange(event) {
+    const element = event.target;
+    const key = element.id.startsWith('gg_') ? element.id.substring(3) : element.id;
+    const value = element.type === 'checkbox' ? element.checked : element.value;
+
+    updateSetting(key, value);
+    debugLog(`[${extensionName}] Setting "${key}" updated to:`, value);
 }

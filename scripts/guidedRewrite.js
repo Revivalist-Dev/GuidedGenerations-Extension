@@ -1,15 +1,74 @@
 import { getContext } from '/scripts/extensions.js';
-import { extensionName, debugLog, extension_settings } from '../index.js';
-import { handleSwitching } from './persistentGuides/guideExports.js';
+import { extensionName, debugLog } from '../index.js';
+import { getSettings } from './utils/settingsManager.js';
+import { handleSwitching } from './utils/exportManager.js';
 
 // --- Global State ---
-let streamingSpan = null;
 let rewriteHistory = {}; // Stores history of rewrites per message for undo
 
 /**
- * Main entry point for guided rewrites from the context menu
- * @param {string} mode - 'Rewrite', 'Shorten', 'Expand', 'Custom'
- * @param {string} [customInput] - Optional input for custom mode
+ * Decoupled Rewrite Logic
+ */
+export async function performRewrite(mode, selectionInfo, customInput = '') {
+    const { mesId, swipeId, selectedText, fullMessage } = selectionInfo;
+    const settings = getSettings();
+    const context = getContext();
+
+    // 1. Prepare Prompt
+    let promptTemplate = '';
+    switch (mode) {
+        case 'Rewrite': promptTemplate = settings.promptRewrite; break;
+        case 'Shorten': promptTemplate = settings.promptShorten; break;
+        case 'Expand': promptTemplate = settings.promptExpand; break;
+        case 'Custom': promptTemplate = settings.promptCustom; break;
+        default: promptTemplate = settings.promptRewrite;
+    }
+
+    let finalPrompt = promptTemplate.replace('{{rewrite}}', selectedText);
+    if (mode === 'Custom') {
+        finalPrompt = finalPrompt.replace('{{input}}', customInput);
+    }
+
+    // 2. Handle Profile Switching
+    const profileValue = settings.profileRewrite?.trim() || '';
+    const presetValue = settings.presetRewrite?.trim() || '';
+    
+    // Switch profile/preset if configured
+    const { switch: switchPreset, restore } = await handleSwitching(profileValue || null, presetValue || null);
+    if (profileValue || presetValue) await switchPreset();
+
+    let resultText = '';
+    try {
+        // 3. Generate
+        resultText = await context.generateRaw({
+            prompt: finalPrompt,
+            max_tokens: settings.maxRewriteTokens || 500,
+        });
+
+        if (resultText) {
+            // 4. Construct New Message
+            const rawStartOffset = selectionInfo.rawStartOffset;
+            const rawEndOffset = selectionInfo.rawEndOffset;
+
+            const newMessage = 
+                fullMessage.substring(0, rawStartOffset) +
+                resultText +
+                fullMessage.substring(rawEndOffset);
+
+            return { success: true, newMessage, resultText };
+        }
+    } catch (err) {
+        console.error(`[${extensionName}] Rewrite generation failed:`, err);
+        return { success: false, error: err };
+    } finally {
+        if (profileValue || presetValue) await restore();
+    }
+    return { success: false };
+}
+
+
+/**
+ * Main Entry Point (UI Handler)
  */
 export async function handleGuidedRewrite(mode, customInput = '') {
     const selectionInfo = getSelectedTextInfo();
@@ -18,103 +77,55 @@ export async function handleGuidedRewrite(mode, customInput = '') {
         return;
     }
 
-    const { mesId, swipeId, selectedText } = selectionInfo;
-    debugLog(`[${extensionName}] Starting ${mode} rewrite for message ${mesId}`);
+    // UI: Show Placeholder
+    const placeholder = createStreamingPlaceholder(selectionInfo);
 
-    // Create streaming placeholder
-    createStreamingPlaceholder(selectionInfo);
+    // Logic: Perform Rewrite
+    const result = await performRewrite(mode, selectionInfo, customInput);
 
-    // Prepare prompt based on mode
-    const settings = extension_settings[extensionName];
-    let promptTemplate = '';
-    
-    switch (mode) {
-        case 'Rewrite': promptTemplate = settings.promptRewrite; break;
-        case 'Shorten': promptTemplate = settings.promptShorten; break;
-        case 'Expand': promptTemplate = settings.promptExpand; break;
-        case 'Custom': promptTemplate = settings.promptCustom; break;
-    }
-
-    let finalPrompt = promptTemplate.replace('{{rewrite}}', selectedText);
-    if (mode === 'Custom') {
-        finalPrompt = finalPrompt.replace('{{input}}', customInput);
-    }
-
-    const context = getContext();
-    const chat = context.chat;
-    
-    // Find effective target index for context truncation
-    let targetIndex = parseInt(mesId); 
-    
-    // Check manual target
-    if (window.GuidedGenerations && typeof window.GuidedGenerations.getGuidedGenerationTargetMessageId === 'function') {
-        const manualTargetId = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
-        if (manualTargetId !== null) {
-            const manualIndex = chat.findIndex(m => m.mesid == manualTargetId);
-            if (manualIndex !== -1 && manualIndex < targetIndex) {
-                targetIndex = manualIndex;
-            }
-        }
-    }
-
-    // Switch to rewrite profile if set
-    const profileValue = settings.profileRewrite?.trim() || '';
-    const presetValue = settings.presetRewrite?.trim() || '';
-    const { switch: switchPreset, restore } = await handleSwitching(profileValue || null, presetValue || null);
-
-    let resultText = '';
-    
-    try {
-        if (profileValue || presetValue) {
-            await switchPreset();
-        }
-
-        // Use generateRaw for the rewrite operation
-        const result = await context.generateRaw({
-            prompt: finalPrompt,
-            max_tokens: settings.maxRewriteTokens || 500,
-        });
+    if (result.success) {
+        // UI: Update Placeholder & Save
+        updateStreamingPlaceholder(placeholder, result.resultText);
         
-        resultText = result;
-        updateStreamingPlaceholder(resultText);
-
-        // Finalize
-        if (resultText) {
-            const newMessage = 
-                selectionInfo.fullMessage.substring(0, selectionInfo.rawStartOffset) +
-                resultText +
-                selectionInfo.fullMessage.substring(selectionInfo.rawEndOffset);
-
-            // Create undo entry
-            saveRewriteChange(mesId, swipeId, selectionInfo.fullMessage, newMessage);
-
-            chat[mesId].mes = newMessage;
-            if (chat[mesId].swipes && chat[mesId].swipes[swipeId] !== undefined) {
-                chat[mesId].swipes[swipeId] = newMessage;
-            }
-
-            // Remove highlight after duration
-            setTimeout(() => {
-                const textNode = document.createTextNode(resultText);
-                if (streamingSpan.parentNode) {
-                    streamingSpan.parentNode.replaceChild(textNode, streamingSpan);
-                }
-                context.saveChat();
-            }, settings.highlightDuration || 2000);
-        }
-
-    } catch (err) {
-        console.error(`[${extensionName}] Rewrite failed:`, err);
-        // Revert placeholder
-        if (streamingSpan && streamingSpan.parentNode) {
-            streamingSpan.outerHTML = selectedText;
-        }
-    } finally {
-        if (profileValue || presetValue) {
-            await restore();
-        }
+        applyRewriteChange(selectionInfo, result.newMessage, result.resultText);
+    } else {
+        // UI: Revert
+        revertStreamingPlaceholder(placeholder, selectionInfo.selectedText);
     }
 }
+
+
+/**
+ * Applies the change to the chat and saves history
+ */
+function applyRewriteChange(selectionInfo, newMessage, resultText) {
+    const { mesId, swipeId, fullMessage } = selectionInfo;
+    const context = getContext();
+    const chat = context.chat;
+    const settings = getSettings();
+
+    // Save History
+    saveRewriteChange(mesId, swipeId, fullMessage, newMessage);
+
+    // Update Chat Object
+    chat[mesId].mes = newMessage;
+    if (chat[mesId].swipes && chat[mesId].swipes[swipeId] !== undefined) {
+        chat[mesId].swipes[swipeId] = newMessage;
+    }
+
+    // UI: Finalize Visuals
+    setTimeout(() => {
+        // Ideally we'd re-render the specific message here safely
+        // For now, we rely on the placeholder transition or a soft reload
+        context.saveChat();
+        
+        // Only if we want to force re-render immediately (optional, might break streaming effect)
+        // updateMessageDisplay(mesId, newMessage); 
+    }, settings.highlightDuration || 2000);
+}
+
+
+// --- DOM Helpers ---
 
 function getSelectedTextInfo() {
     const selection = window.getSelection();
@@ -128,9 +139,7 @@ function getSelectedTextInfo() {
     if (!mesDiv) return null;
 
     const mesId = mesDiv.getAttribute('mesid');
-    const mesTextDiv = mesDiv.querySelector('.mes_text');
-    if (!mesTextDiv) return null;
-
+    
     // Get chat data
     const context = getContext();
     const chat = context.chat;
@@ -138,11 +147,7 @@ function getSelectedTextInfo() {
     if (!messageData) return null;
     
     // Current swipe handling
-    let swipeId = 0;
-    if (messageData.swipe_id !== undefined) {
-        swipeId = messageData.swipe_id;
-    }
-    
+    let swipeId = messageData.swipe_id !== undefined ? messageData.swipe_id : 0;
     const fullMessage = messageData.mes;
     const selectedText = selection.toString();
 
@@ -153,11 +158,6 @@ function getSelectedTextInfo() {
         return null;
     }
     
-    // Ambiguity check
-    if (fullMessage.indexOf(selectedText, rawStartOffset + 1) !== -1) {
-        console.warn("Ambiguous selection: Phrase appears multiple times. Defaulting to first occurrence.");
-    }
-
     return {
         mesId,
         swipeId,
@@ -170,34 +170,33 @@ function getSelectedTextInfo() {
 
 function createStreamingPlaceholder(selectionInfo) {
     const selection = window.getSelection();
-    if (!selection.rangeCount) return;
+    if (!selection.rangeCount) return null;
     
     const range = selection.getRangeAt(0);
     range.deleteContents();
     
-    streamingSpan = document.createElement('span');
-    streamingSpan.className = 'animated-highlight';
-    streamingSpan.textContent = '...'; // Initial loader
-    range.insertNode(streamingSpan);
+    const span = document.createElement('span');
+    span.className = 'animated-highlight';
+    span.textContent = '...'; 
+    range.insertNode(span);
     
     selection.removeAllRanges();
+    return span;
 }
 
-function updateStreamingPlaceholder(text) {
-    if (streamingSpan) {
-        streamingSpan.textContent = text;
+function updateStreamingPlaceholder(span, text) {
+    if (span) span.textContent = text;
+}
+
+function revertStreamingPlaceholder(span, originalText) {
+    if (span && span.parentNode) {
+        span.outerHTML = originalText;
     }
 }
 
-// --- Undo Logic (Called by index.js buttons) ---
 
-/**
- * Saves a change to history for undo functionality
- * @param {string|number} mesId - Message ID
- * @param {string|number} swipeId - Swipe ID
- * @param {string} oldContent - Content before change
- * @param {string} newContent - Content after change
- */
+// --- Undo Logic ---
+
 function saveRewriteChange(mesId, swipeId, oldContent, newContent) {
     if (!rewriteHistory[mesId]) {
         rewriteHistory[mesId] = [];
@@ -210,33 +209,18 @@ function saveRewriteChange(mesId, swipeId, oldContent, newContent) {
         timestamp: Date.now()
     });
 
-    // Show undo button for this message
+    // Show undo button
     const undoBtn = document.querySelector(`.mes[mesid="${mesId}"] .guided_undo_rewrite_button`);
-    if (undoBtn) {
-        undoBtn.style.display = 'inline-block';
-    }
+    if (undoBtn) undoBtn.style.display = 'inline-block';
 }
 
-/**
- * Undoes the last rewrite for a specific message
- * @param {string|number} mesId - Message ID to undo
- */
 export function undoRewrite(mesId) {
     const context = getContext();
-    if (!rewriteHistory[mesId] || rewriteHistory[mesId].length === 0) {
-        console.warn(`[GuidedGenerations] No rewrite history for message ${mesId}`);
-        return;
-    }
+    if (!rewriteHistory[mesId] || rewriteHistory[mesId].length === 0) return;
 
     const lastChange = rewriteHistory[mesId].pop();
     const chat = context.chat;
     
-    // Check if current content matches what we expect (conflict detection)
-    const currentMes = chat[mesId].mes;
-    if (currentMes !== lastChange.newContent) {
-        console.warn(`[GuidedGenerations] Message content has changed since last rewrite. Undo might have unexpected results.`);
-    }
-
     // Revert content
     chat[mesId].mes = lastChange.oldContent;
     if (chat[mesId].swipes && chat[mesId].swipes[lastChange.swipeId] !== undefined) {
@@ -251,16 +235,13 @@ export function undoRewrite(mesId) {
     
     context.saveChat();
 
-    // Hide button if no history left
+    // Hide button if empty
     if (rewriteHistory[mesId].length === 0) {
         const undoBtn = document.querySelector(`.mes[mesid="${mesId}"] .guided_undo_rewrite_button`);
-        if (undoBtn) {
-            undoBtn.style.display = 'none';
-        }
+        if (undoBtn) undoBtn.style.display = 'none';
     }
 }
 
-// Initial export for global access (called from index.js if needed)
 export function initRewriteUndo() {
     if (!window.GuidedGenerations) window.GuidedGenerations = {};
     window.GuidedGenerations.saveRewriteChange = saveRewriteChange;

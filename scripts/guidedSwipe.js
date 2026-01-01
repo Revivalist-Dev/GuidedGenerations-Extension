@@ -1,8 +1,8 @@
 // scripts/guidedSwipe.js
 
-import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './persistentGuides/guideExports.js'; // Import from central hub
-import { swipe, chat, redisplayChat } from '../../../../../script.js';
-import { SWIPE_DIRECTION, SWIPE_SOURCE } from '../../../../../scripts/constants.js';
+import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { swipe, chat, redisplayChat } from '/script.js';
+import { SWIPE_DIRECTION, SWIPE_SOURCE } from '/scripts/constants.js';
 import { guidedImpersonateSwipe } from './guidedImpersonateSwipe.js';
 
 // Helper function for delays

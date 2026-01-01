@@ -3,7 +3,7 @@
  */
 
 // Import necessary items from central hub
-import { getContext, extension_settings, extensionName } from './guideExports.js'; // Import from central hub
+import { getContext, extension_settings, extensionName } from '../utils/exportManager.js'; // Import from central hub
 import { runGuideScript } from './runGuide.js';
 
 /**

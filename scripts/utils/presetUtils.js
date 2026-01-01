@@ -1,4 +1,4 @@
-import { debugLog, debugWarn, extension_settings, extensionName } from '../persistentGuides/guideExports.js'; // Import from central hub
+import { debugLog, debugWarn, extensionName, extension_settings } from './exportManager.js'; // Import from central hub
 
 // Event listener management for profile and preset switching
 let eventListenersInitialized = false;
