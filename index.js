@@ -16,7 +16,7 @@ import { guidedImpersonate } from './scripts/guidedImpersonate.js';
 import customAutoGuide from './scripts/persistentGuides/customAutoGuide.js'; // Default export import
 import { getPresetManager } from '/scripts/preset-manager.js';
 import { loadSettingsPanel } from './scripts/settingsPanel.js';
-import { showVersionNotification } from './scripts/ui/versionNotificationPopup.js';
+
 import { getProfileList, handleGuidedRewrite } from './scripts/utils/exportManager.js';
 
 // Import auto-triggerable guides
@@ -24,6 +24,9 @@ import thinkingGuide from './scripts/persistentGuides/thinkingGuide.js';
 import stateGuide from './scripts/persistentGuides/stateGuide.js';
 import clothesGuide from './scripts/persistentGuides/clothesGuide.js';
 import { checkAndExecuteTracker } from './scripts/persistentGuides/trackerLogic.js';
+
+// Logging (now from logger.js)
+import { debugLog, debugWarn, debugError, getDebugMessagesAsText, clearDebugMessages } from './scripts/utils/logger.js';
 
 // Constants
 export const extensionName = "GuidedGenerations-Extension";
@@ -33,62 +36,13 @@ export { extension_settings };
 let previousImpersonateInput = '';
 let lastImpersonateResult = '';
 let impersonateTemplates = [];
-let debugMessages = [];
-const MAX_DEBUG_MESSAGES = 1000;
+
+// Re-export logging for compatibility
+export { debugLog, debugWarn, debugError, getDebugMessagesAsText, clearDebugMessages };
 
 // Default Settings (imported to avoid duplication if we want, but keeping here for legacy compatibility)
 import { defaultSettings } from './scripts/utils/constants.js';
 export { defaultSettings };
-
-/**
- * Conditional logging utilities using the centralized settings.
- */
-function addToDebugBuffer(level, ...args) {
-    const timestamp = new Date().toLocaleTimeString();
-    const message = args.map(arg => {
-        try {
-            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
-        } catch (e) {
-            return '[Unserializable Object]';
-        }
-    }).join(' ');
-    
-    const formattedMsg = `[${level}] ${message}`;
-    debugMessages.push(`${timestamp} ${formattedMsg}`);
-    
-    if (debugMessages.length > MAX_DEBUG_MESSAGES) {
-        debugMessages.shift();
-    }
-}
-
-export function debugLog(...args) {
-    if (getSettings().debugMode) {
-        console.log(`[${extensionName}][DEBUG]`, ...args);
-    }
-    addToDebugBuffer('DEBUG', ...args);
-}
-
-export function debugWarn(...args) {
-    if (getSettings().debugMode) {
-        console.warn(`[${extensionName}][WARN]`, ...args);
-    }
-    addToDebugBuffer('WARN', ...args);
-}
-
-export function debugError(...args) {
-    if (getSettings().debugMode) {
-        console.error(`[${extensionName}][ERROR]`, ...args);
-    }
-    addToDebugBuffer('ERROR', ...args);
-}
-
-export function getDebugMessagesAsText() {
-    return debugMessages.join('\n');
-}
-
-export function clearDebugMessages() {
-    debugMessages = [];
-}
 
 /**
  * Handle auto-triggering of guides based on settings.

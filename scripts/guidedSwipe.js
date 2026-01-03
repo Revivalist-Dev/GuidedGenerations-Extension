@@ -1,9 +1,10 @@
 // scripts/guidedSwipe.js
 
 import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
-import { swipe, chat, redisplayChat } from '/script.js';
-import { SWIPE_DIRECTION, SWIPE_SOURCE } from '/scripts/constants.js';
+import { swipe, chat, redisplayChat, Generate } from '/script.js';
+import { SWIPE_DIRECTION, SWIPE_SOURCE, OVERSWIPE_BEHAVIOR } from '/scripts/constants.js';
 import { guidedImpersonateSwipe } from './guidedImpersonateSwipe.js';
+import { getTokenCountAsync } from '/scripts/tokenizers.js';
 
 // Helper function for delays
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -91,33 +92,54 @@ async function generateNewSwipe(forceTargetIndex = -1) {
         let messageData = context.chat[targetIndex];
         const mesDom = document.querySelector(`#chat .mes[mesid="${targetIndex}"]`);
 
+        // --- TOKEN COUNTING (INPUT/PRE-SWIPE) ---
+        const textarea = document.getElementById('send_textarea');
+        if (textarea && textarea.value.trim()) {
+            const inputTokens = await getTokenCountAsync(textarea.value);
+            debugLog(`Input Token Count (Swipe): ${inputTokens}`);
+        }
+
         // Check if there are swipes and if navigation is needed
         if (messageData && Array.isArray(messageData.swipes) && messageData.swipes.length > 1) {
             const targetSwipeIndex = messageData.swipes.length - 1;
             if (messageData.swipe_id !== targetSwipeIndex) {
                 debugLog(`[Swipe] Navigating directly from swipe ${messageData.swipe_id} to last swipe ${targetSwipeIndex}.`);
-                messageData.swipe_id = targetSwipeIndex;
-                messageData.mes = messageData.swipes[targetSwipeIndex];
-                // Optional: Update extra fields if needed, similar to swipes-go
-                // messageData.extra = structuredClone(messageData.swipe_info?.[targetSwipeIndex]?.extra);
-                // ... other fields
-
-                if (mesDom) {
-                    // Update message text in DOM
-                    const mesTextElement = mesDom.querySelector('.mes_text');
-                    if (mesTextElement) {
-                        mesTextElement.innerHTML = messageFormatting(
-                            messageData.mes, messageData.name, messageData.is_system, messageData.is_user, targetIndex
-                        );
-                    }
-                    // Update swipe counter in DOM
-                    [...mesDom.querySelectorAll('.swipes-counter')].forEach(it => it.textContent = `${messageData.swipe_id + 1}/${messageData.swipes.length}`);
+                
+                // Use SillyTavern's native swipe function to navigate safely
+                if (typeof swipe === 'function') {
+                    // Force the swipe to the specific ID
+                    await swipe(null, SWIPE_DIRECTION.RIGHT, { 
+                        source: 'GuidedGenerations', 
+                        repeated: false, 
+                        forceMesId: targetIndex, 
+                        forceSwipeId: targetSwipeIndex 
+                    });
                 } else {
-                    debugLog(`[Swipe] Could not find DOM element for message ${targetIndex} to update UI during direct navigation.`);
+                    console.warn("[Swipe] Native swipe function not found, falling back to direct manipulation (risky).");
+                    messageData.swipe_id = targetSwipeIndex;
+                    messageData.mes = messageData.swipes[targetSwipeIndex];
+                    // Optional: Update extra fields if needed, similar to swipes-go
+                    // messageData.extra = structuredClone(messageData.swipe_info?.[targetSwipeIndex]?.extra);
+                    // ... other fields
+
+                    if (mesDom) {
+                        // Update message text in DOM
+                        const mesTextElement = mesDom.querySelector('.mes_text');
+                        if (mesTextElement) {
+                            mesTextElement.innerHTML = messageFormatting(
+                                messageData.mes, messageData.name, messageData.is_system, messageData.is_user, targetIndex
+                            );
+                        }
+                        // Update swipe counter in DOM
+                        [...mesDom.querySelectorAll('.swipes-counter')].forEach(it => it.textContent = `${messageData.swipe_id + 1}/${messageData.swipes.length}`);
+                    } else {
+                        debugLog(`[Swipe] Could not find DOM element for message ${targetIndex} to update UI during direct navigation.`);
+                    }
+
+                    // Save chat and notify - Removed saveChatConditional() as it's not available
+                    eventSource.emit(event_types.MESSAGE_SWIPED, targetIndex);
                 }
 
-                // Save chat and notify - Removed saveChatConditional() as it's not available
-                eventSource.emit(event_types.MESSAGE_SWIPED, targetIndex);
                 // Update button visibility - Removed showSwipeButtons() as it's not available
                 // showSwipeButtons();
                 // Use standard setTimeout for delay as context.delay is missing
@@ -161,18 +183,41 @@ async function generateNewSwipe(forceTargetIndex = -1) {
             const restore = truncateChatForContext(targetIndex);
             
             try {
-                // Since truncateChatForContext made targetIndex the last message, 
-                // we always use chat.length - 1 for the swipe call.
-                await swipe(null, SWIPE_DIRECTION.RIGHT, { 
-                    source: SWIPE_SOURCE.AUTO_SWIPE, 
-                    forceMesId: chat.length - 1 
+                debugLog(`[Swipe] Calling Generate('swipe') for targetIndex ${targetIndex}. Final message in truncated chat is index ${chat.length - 1}`);
+                
+                // Directly trigger generation for the swiped message
+                // This ensures it behaves like a manual 'swipe' click in SillyTavern
+                // Note: Generate('swipe') specifically handles swiping the last message in current chat array
+                
+                const genPromise = Generate('swipe');
+                
+                debugLog(`[Swipe] Awaiting GENERATION_ENDED...`);
+                // --- 3. Wait for Generation to Finish ---
+                const generationPromise = new Promise((resolve) => {
+                    const successListener = (mesId) => {
+                        debugLog(`[Swipe] Generation ended signal received for message ${mesId}. Target index was ${targetIndex}.`);
+                        resolve(true);
+                    };
+
+                    eventSource.once(event_types.GENERATION_ENDED, successListener);
                 });
+
+                // Await both the Generate call and the event
+                await Promise.all([genPromise, generationPromise]);
+
+                // --- TOKEN COUNTING (OUTPUT/POST-SWIPE) ---
+                const finalMessageData = chat[targetIndex];
+                if (finalMessageData && finalMessageData.mes) {
+                    const outputTokens = await getTokenCountAsync(finalMessageData.mes);
+                    debugLog(`Output Token Count (Swipe): ${outputTokens}`);
+                }
             } finally {
                 // Restore messages
                 restore();
                 
                 // Redisplay the restored messages to ensure DOM consistency
                 if (typeof redisplayChat === 'function') {
+                    debugLog(`[Swipe] Restoration complete. Redisplaying chat...`);
                     await redisplayChat(chat, targetIndex);
                 } else {
                     console.warn("[GuidedGenerations] redisplayChat not found, chat history restored but DOM might be incomplete until reload.");
@@ -183,26 +228,8 @@ async function generateNewSwipe(forceTargetIndex = -1) {
             throw err;
         }
 
-        // --- 3. Wait for Generation to Finish ---
-        const generationPromise = new Promise((resolve) => {
-            const successListener = () => {
-                debugLog("[Swipe] Generation ended signal received.");
-                resolve(true);
-            };
-
-            eventSource.once(event_types.GENERATION_ENDED, successListener);
-        });
-
-        // Await the generation promise (will throw on error)
-        await generationPromise;
         // Use standard setTimeout for delay as context.delay is missing
         await new Promise(resolve => setTimeout(resolve, 200)); // Small delay after generation finishes
-
-        // Re-check context to confirm swipe count increased (optional but good practice)
-        context = getContext(); // Get latest context
-        const finalMessageData = context.chat[context.chat.length - 1];
-        const finalSwipeCount = finalMessageData?.swipes?.length ?? 0;
-        debugLog(`[Swipe] Final swipe count after generation: ${finalSwipeCount}`);
 
         return true; // Indicate success
 

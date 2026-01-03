@@ -1,7 +1,9 @@
 import { getContext } from '/scripts/extensions.js';
-import { extensionName, debugLog } from '../index.js';
+import { extensionName } from './utils/constants.js';
+import { debugLog } from './utils/logger.js';
 import { getSettings } from './utils/settingsManager.js';
-import { handleSwitching } from './utils/exportManager.js';
+import { handleSwitching, chat, saveChatConditional, updateMessageBlock } from './utils/exportManager.js';
+import { getTokenCountAsync } from '/scripts/tokenizers.js';
 
 // --- Global State ---
 let rewriteHistory = {}; // Stores history of rewrites per message for undo
@@ -25,9 +27,29 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
     }
 
     let finalPrompt = promptTemplate.replace('{{rewrite}}', selectedText);
+    let instruction = '';
     if (mode === 'Custom') {
-        finalPrompt = finalPrompt.replace('{{input}}', customInput);
+        // If customInput is provided (e.g. from textarea), use it.
+        // Otherwise, try to find the textarea and get the value.
+        instruction = customInput;
+        if (!instruction) {
+            const textarea = document.getElementById('send_textarea');
+            if (textarea) {
+                instruction = textarea.value;
+            }
+        }
+        
+        if (!instruction) {
+            debugLog(`[${extensionName}] Custom rewrite aborted: No instruction provided.`);
+            return { success: false, error: "No instruction provided" };
+        }
+
+        finalPrompt = finalPrompt.replace('{{input}}', instruction);
     }
+
+    // --- TOKEN COUNTING (INPUT) ---
+    const inputTokens = await getTokenCountAsync(instruction || selectedText);
+    debugLog(`Input Token Count (${mode}): ${inputTokens}`);
 
     // 2. Handle Profile Switching
     const profileValue = settings.profileRewrite?.trim() || '';
@@ -46,14 +68,30 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
         });
 
         if (resultText) {
-            // 4. Construct New Message
-            const rawStartOffset = selectionInfo.rawStartOffset;
-            const rawEndOffset = selectionInfo.rawEndOffset;
+            // --- TOKEN COUNTING (OUTPUT) ---
+            const outputTokens = await getTokenCountAsync(resultText);
+            debugLog(`Output Token Count (${mode}): ${outputTokens}`);
 
-            const newMessage = 
-                fullMessage.substring(0, rawStartOffset) +
-                resultText +
-                fullMessage.substring(rawEndOffset);
+            // 4. Construct New Message
+            // Robust Replacement Logic:
+            // 1. Try exact replacement first
+            let newMessage = fullMessage.replace(selectedText, resultText); 
+            
+            // 2. If exact replacement fails, try trimmed replacement
+            if (newMessage === fullMessage) {
+                 const trimmedSelection = selectedText.trim();
+                 newMessage = fullMessage.replace(trimmedSelection, resultText);
+            }
+
+            // 3. If trimmed replacement fails, try finding unique occurrence ignoring whitespace
+            if (newMessage === fullMessage) {
+                // Escape special regex chars
+                const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
+                // Create a pattern that allows flexible whitespace between words
+                const flexiblePattern = escapeRegExp(selectedText.trim()).replace(/\s+/g, '\\s+');
+                const regex = new RegExp(flexiblePattern);
+                newMessage = fullMessage.replace(regex, resultText);
+            }
 
             return { success: true, newMessage, resultText };
         }
@@ -70,8 +108,11 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
 /**
  * Main Entry Point (UI Handler)
  */
-export async function handleGuidedRewrite(mode, customInput = '') {
-    const selectionInfo = getSelectedTextInfo();
+export async function handleGuidedRewrite(mode, customInput = '', selectionInfo = null) {
+    if (!selectionInfo) {
+        selectionInfo = getSelectedTextInfo();
+    }
+    
     if (!selectionInfo) {
         debugLog(`[${extensionName}] Rewrite aborted: No valid selection info.`);
         return;
@@ -100,8 +141,6 @@ export async function handleGuidedRewrite(mode, customInput = '') {
  */
 function applyRewriteChange(selectionInfo, newMessage, resultText) {
     const { mesId, swipeId, fullMessage } = selectionInfo;
-    const context = getContext();
-    const chat = context.chat;
     const settings = getSettings();
 
     // Save History
@@ -113,21 +152,21 @@ function applyRewriteChange(selectionInfo, newMessage, resultText) {
         chat[mesId].swipes[swipeId] = newMessage;
     }
 
-    // UI: Finalize Visuals
-    setTimeout(() => {
-        // Ideally we'd re-render the specific message here safely
-        // For now, we rely on the placeholder transition or a soft reload
-        context.saveChat();
-        
-        // Only if we want to force re-render immediately (optional, might break streaming effect)
-        // updateMessageDisplay(mesId, newMessage); 
-    }, settings.highlightDuration || 2000);
+    // 4. Update UI
+    try {
+        updateMessageBlock(mesId, chat[mesId]);
+    } catch (e) {
+        debugError(`[${extensionName}] updateMessageBlock failed:`, e);
+    }
+    
+    // Save the chat after visual update
+    saveChatConditional();
 }
 
 
 // --- DOM Helpers ---
 
-function getSelectedTextInfo() {
+export function getSelectedTextInfo() {
     const selection = window.getSelection();
     if (selection.rangeCount === 0) return null;
 
@@ -142,7 +181,6 @@ function getSelectedTextInfo() {
     
     // Get chat data
     const context = getContext();
-    const chat = context.chat;
     const messageData = chat[mesId];
     if (!messageData) return null;
     
@@ -151,37 +189,53 @@ function getSelectedTextInfo() {
     const fullMessage = messageData.mes;
     const selectedText = selection.toString();
 
-    // Map DOM range to raw text indices
-    const rawStartOffset = fullMessage.indexOf(selectedText);
-    if (rawStartOffset === -1) {
-        console.warn("Could not map selection to raw message. Markdown structure might differ significantly from rendered HTML.");
-        return null;
-    }
-    
     return {
         mesId,
         swipeId,
         selectedText,
         fullMessage,
-        rawStartOffset,
-        rawEndOffset: rawStartOffset + selectedText.length
+        rawStartOffset: -1, // Not used for replacement, but kept for compatibility
+        rawEndOffset: -1,   // Not used for replacement, but kept for compatibility
+        domRange: range.cloneRange() // Keep a reference to the DOM range for placeholder insertion if immediate
     };
 }
 
 function createStreamingPlaceholder(selectionInfo) {
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return null;
+    // Try to use preserved DOM range if available and still valid
+    let range = selectionInfo.domRange;
     
-    const range = selection.getRangeAt(0);
-    range.deleteContents();
-    
-    const span = document.createElement('span');
-    span.className = 'animated-highlight';
-    span.textContent = '...'; 
-    range.insertNode(span);
-    
-    selection.removeAllRanges();
-    return span;
+    // Fallback to finding text if range is invalid (detached)
+    if (!range || range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE && !document.contains(range.commonAncestorContainer)) {
+         // Attempt to find the text again in the message div
+         // This is a "best effort" recovery if the DOM changed significantly
+         const mesDiv = document.querySelector(`.mes[mesid="${selectionInfo.mesId}"] .mes_text`);
+         if (mesDiv) {
+             // Simple text search - risky if text appears multiple times, but better than nothing
+             // In a robust implementation, we might walk the tree.
+             // For now, if we can't trust the range, we skip the placeholder to avoid destroying the wrong text
+             debugLog(`[${extensionName}] createStreamingPlaceholder: DOM range invalid, skipping placeholder to allow background rewrite.`);
+             return null;
+         }
+         return null;
+    }
+
+    try {
+        range.deleteContents();
+        
+        const span = document.createElement('span');
+        span.className = 'animated-highlight';
+        span.textContent = '...'; 
+        range.insertNode(span);
+        
+        // Clear selection to avoid interference
+        const selection = window.getSelection();
+        if (selection) selection.removeAllRanges();
+        
+        return span;
+    } catch (e) {
+        debugLog(`[${extensionName}] createStreamingPlaceholder: Failed to manipulate range.`, e);
+        return null;
+    }
 }
 
 function updateStreamingPlaceholder(span, text) {
@@ -215,25 +269,20 @@ function saveRewriteChange(mesId, swipeId, oldContent, newContent) {
 }
 
 export function undoRewrite(mesId) {
-    const context = getContext();
     if (!rewriteHistory[mesId] || rewriteHistory[mesId].length === 0) return;
 
     const lastChange = rewriteHistory[mesId].pop();
-    const chat = context.chat;
     
-    // Revert content
+    // Revert content in chat object
     chat[mesId].mes = lastChange.oldContent;
     if (chat[mesId].swipes && chat[mesId].swipes[lastChange.swipeId] !== undefined) {
         chat[mesId].swipes[lastChange.swipeId] = lastChange.oldContent;
     }
 
     // Update UI
-    const mesDiv = document.querySelector(`.mes[mesid="${mesId}"] .mes_text`);
-    if (mesDiv) {
-        mesDiv.innerHTML = context.messageFormatting(lastChange.oldContent, mesId, false, false);
-    }
+    updateMessageBlock(mesId, chat[mesId]);
     
-    context.saveChat();
+    saveChatConditional();
 
     // Hide button if empty
     if (rewriteHistory[mesId].length === 0) {

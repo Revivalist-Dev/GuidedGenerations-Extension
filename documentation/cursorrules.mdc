@@ -1,9 +1,0 @@
----
-alwaysApply: true
----
-- the files in the Folder References are just that. It is the source code of SillyTavern for which we are building an extension. And it is the original Guided Generations Quickreply set wich we try to emulate.
-- in addition to analizing and editing files always give a short explanation of what you are doing before each step.
-- Sillytavern server runs on a seperate machine and can't best started or stopped from the ai.
-- **Debug Logging System**: Use the conditional debug logging system for all informational and debug messages. Import `debugLog` and `debugWarn` from `index.js` and use them instead of `console.log` for debug information. Only use `console.error` for actual errors that users need to see. This keeps the console clean during normal operation while preserving helpful debugging information when debug mode is enabled.
-- **Debug Mode Setting**: The extension includes a `debugMode` setting in the UI Preferences section that users can toggle to enable/disable debug logging. When adding new logging, consider whether it should be debug-only or always visible.
-- **Central Import Hub**: ALWAYS use the central import hub system. All imports should go through `scripts/persistentGuides/guideExports.js` instead of complex relative paths or direct imports from other files. This eliminates path depth issues and provides a single source of truth for all imports. Never import directly from `index.js` or use complex relative paths like `../../../../extensions.js` - always use the central hub.

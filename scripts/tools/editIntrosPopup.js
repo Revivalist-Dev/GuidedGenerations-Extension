@@ -401,7 +401,7 @@ export class EditIntrosPopup {
         let originalProfile = null;
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../persistentGuides/guideExports.js');
+            const { getCurrentProfile } = await import('../utils/exportManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[EditIntros] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {

@@ -1,7 +1,7 @@
 // scripts/settingsPanel.js
 
 import { extensionName, defaultSettings } from './utils/constants.js';
-import { extension_settings, debugLog, debugWarn } from '../index.js';
+import { extension_settings, debugLog, debugWarn, getDebugMessagesAsText, clearDebugMessages } from '../index.js';
 import { getSettings, updateSetting } from './utils/settingsManager.js';
 import { renderExtensionTemplateAsync, getContext } from '/scripts/extensions.js';
 import { getProfileList, getPresetsForApiType, getProfileApiType, getCurrentProfile } from './utils/presetUtils.js';
@@ -203,15 +203,19 @@ async function updatePresetDropdown(select, profileName, currentValue) {
         const presets = await getPresetsForApiType(apiType);
         select.innerHTML = '<option value="">None</option>';
         
-        presets.forEach(preset => {
-            const option = document.createElement('option');
-            // Support both object and string formats from ST
-            const name = typeof preset === 'object' ? (preset.name || preset.id) : preset;
-            option.value = name;
-            option.text = name;
-            option.selected = name === currentValue;
-            select.appendChild(option);
-        });
+        if (Array.isArray(presets)) {
+            presets.forEach(preset => {
+                const option = document.createElement('option');
+                // Support both object and string formats from ST
+                const name = typeof preset === 'object' ? (preset.name || preset.id) : preset;
+                option.value = name;
+                option.text = name;
+                option.selected = name === currentValue;
+                select.appendChild(option);
+            });
+        } else {
+            debugWarn(`[${extensionName}] Presets for API type ${apiType} is not an array:`, presets);
+        }
     } catch (error) {
         debugWarn(`[${extensionName}] Error updating presets for profile ${profileName}:`, error);
     }
@@ -239,6 +243,47 @@ export function addSettingsEventListeners() {
             }
         });
     });
+
+    // Debug Log Buttons
+    const copyDebugLogBtn = document.getElementById('gg_copy_debug_log');
+    if (copyDebugLogBtn) {
+        copyDebugLogBtn.addEventListener('click', () => {
+            const debugMessages = getDebugMessagesAsText();
+            navigator.clipboard.writeText(debugMessages).then(() => {
+                copyDebugLogBtn.textContent = 'Copied!';
+                setTimeout(() => copyDebugLogBtn.textContent = 'Copy Debug Log', 1500);
+            }).catch(err => {
+                console.error('Failed to copy debug log: ', err);
+            });
+        });
+    }
+
+    const downloadDebugLogBtn = document.getElementById('gg_download_debug_log');
+    if (downloadDebugLogBtn) {
+        downloadDebugLogBtn.addEventListener('click', () => {
+            const debugMessages = getDebugMessagesAsText();
+            const blob = new Blob([debugMessages], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `guided_generations_debug_log_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            downloadDebugLogBtn.textContent = 'Downloaded!';
+            setTimeout(() => downloadDebugLogBtn.textContent = 'Download Debug Log', 1500);
+        });
+    }
+
+    const clearDebugLogBtn = document.getElementById('gg_clear_debug_log');
+    if (clearDebugLogBtn) {
+        clearDebugLogBtn.addEventListener('click', () => {
+            clearDebugMessages();
+            clearDebugLogBtn.textContent = 'Cleared!';
+            setTimeout(() => clearDebugLogBtn.textContent = 'Clear Debug Log', 1500);
+        });
+    }
 }
 
 /**

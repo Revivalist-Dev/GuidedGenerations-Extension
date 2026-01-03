@@ -1,6 +1,7 @@
-import { getContext } from '/scripts/extensions.js';
-import { extensionName, debugLog, extension_settings, defaultSettings } from '../../index.js';
+import { getContext, extension_settings } from '/scripts/extensions.js';
 import { saveSettingsDebounced } from '/script.js';
+import { extensionName, defaultSettings } from './constants.js';
+import { debugLog } from './logger.js';
 
 /**
  * Centralized settings manager for the extension.

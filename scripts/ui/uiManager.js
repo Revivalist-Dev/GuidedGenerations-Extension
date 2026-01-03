@@ -1,8 +1,14 @@
-import { extensionName, debugLog, debugWarn, debugError, getImpersonateTemplate, setGuidedGenerationTargetMessageId, getGuidedGenerationTargetMessageId, updatePersistentGuideCounter } from '../../index.js';
+// Import logging from the new logger util
+import { debugLog, debugWarn, debugError } from '../utils/logger.js';
+import { extensionName, getImpersonateTemplate, setGuidedGenerationTargetMessageId, getGuidedGenerationTargetMessageId, updatePersistentGuideCounter } from '../../index.js';
 import { getSettings, updateSetting } from '../utils/settingsManager.js';
 import { getContext } from '/scripts/extensions.js';
 import { safeImport } from '../utils/importManager.js';
-import { showVersionNotification } from './versionNotificationPopup.js';
+
+
+let _currentSelectedText = '';
+// Add new variable to store full selection info
+let _currentSelectionInfo = null;
 
 // Import actions dynamically or via safe wrappers to prevent circular deps where possible
 import { simpleSend } from '../simpleSend.js';
@@ -11,6 +17,7 @@ import { guidedSwipe } from '../guidedSwipe.js';
 import { guidedResponse } from '../guidedResponse.js';
 import { guidedContinue, undoLastGuidedAddition, revertToOriginalGuidedContinue } from '../guidedContinue.js';
 import { guidedImpersonate } from '../guidedImpersonate.js';
+import { getSelectedTextInfo } from '../guidedRewrite.js'; // Import helper to capture selection info
 
 /**
  * Main UI Initialization
@@ -31,8 +38,8 @@ export async function initializeUI() {
     // Rewrite Menu
     initRewriteMenu();
     
-    // Version Check
-    checkVersionAndNotify();
+    // Initial adjustment in case the panel is already open on load
+    // adjustPopupPosition(); // Removed popup adjustment
 }
 
 /**
@@ -93,28 +100,28 @@ export async function updateExtensionButtons() {
 
     if (settings.showEditIntrosButton) {
         actionButtonsContainer.appendChild(createBtn('gg_edit_intros_button', 'Edit Intros', 'fa-solid fa-user-edit', async () => {
-            const module = await safeImport('../tools/editIntros.js', 'Edit Intros');
+            const module = await safeImport('./scripts/tools/editIntros.js', 'Edit Intros');
             if (module?.default) module.default();
         }));
     }
 
     if (settings.showCorrectionsButton) {
         actionButtonsContainer.appendChild(createBtn('gg_corrections_button', 'Corrections', 'fa-solid fa-file-alt', async () => {
-             const module = await safeImport('../tools/corrections.js', 'Corrections');
+             const module = await safeImport('./scripts/tools/corrections.js', 'Corrections');
              if (module?.corrections) module.corrections();
         }));
     }
 
     if (settings.showSpellcheckerButton) {
         actionButtonsContainer.appendChild(createBtn('gg_spellchecker_button', 'Spellchecker', 'fa-solid fa-spell-check', async () => {
-             const module = await safeImport('../tools/spellchecker.js', 'Spellchecker');
+             const module = await safeImport('./scripts/tools/spellchecker.js', 'Spellchecker');
              if (module?.spellchecker) module.spellchecker();
         }));
     }
 
     if (settings.showClearInputButton) {
         actionButtonsContainer.appendChild(createBtn('gg_clear_input_button', 'Clear Input', 'fa-solid fa-trash', async () => {
-             const module = await safeImport('../tools/clearInput.js', 'Clear Input');
+             const module = await safeImport('./scripts/tools/clearInput.js', 'Clear Input');
              if (module?.default) module.default();
         }));
     }
@@ -181,22 +188,22 @@ function createToolsMenuButton(container) {
     const sep2 = document.createElement('hr'); sep2.className = 'pg-separator'; menu.appendChild(sep2);
 
     addItem('fa-user-edit', 'Edit Intros', async () => {
-        const m = await safeImport('../tools/editIntros.js', 'Edit Intros');
+        const m = await safeImport('./scripts/tools/editIntros.js', 'Edit Intros');
         if(m?.default) m.default();
     }, "Edit or regenerate character introductions.");
 
     addItem('fa-file-alt', 'Corrections', async () => {
-        const m = await safeImport('../tools/corrections.js', 'Corrections');
+        const m = await safeImport('./scripts/tools/corrections.js', 'Corrections');
         if(m?.corrections) m.corrections();
     }, "Instruct AI to rewrite last message with corrections.");
 
     addItem('fa-spell-check', 'Spellchecker', async () => {
-        const m = await safeImport('../tools/spellchecker.js', 'Spellchecker');
+        const m = await safeImport('./scripts/tools/spellchecker.js', 'Spellchecker');
         if(m?.spellchecker) m.spellchecker();
     }, "Check and correct grammar/flow.");
 
     addItem('fa-trash', 'Clear Input', async () => {
-        const m = await safeImport('../tools/clearInput.js', 'Clear Input');
+        const m = await safeImport('./scripts/tools/clearInput.js', 'Clear Input');
         if(m?.default) m.default();
     });
     
@@ -231,21 +238,21 @@ function createPersistentGuidesButton(container) {
 
     // Content Guides
     const contentGuides = [
-        { name: 'Situational', icon: 'fa-location-dot', path: '../persistentGuides/situationalGuide.js' },
-        { name: 'Thinking', icon: 'fa-brain', path: '../persistentGuides/thinkingGuide.js' },
-        { name: 'Clothes', icon: 'fa-shirt', path: '../persistentGuides/clothesGuide.js' },
-        { name: 'State', icon: 'fa-face-smile', path: '../persistentGuides/stateGuide.js' },
-        { name: 'Rules', icon: 'fa-list-ol', path: '../persistentGuides/rulesGuide.js' },
-        { name: 'Custom', icon: 'fa-pen-to-square', path: '../persistentGuides/customGuide.js' },
-        { name: 'Custom Auto', icon: 'fa-robot', path: '../persistentGuides/customAutoGuide.js' },
-        { name: 'Fun', icon: 'fa-gamepad', path: '../persistentGuides/funGuide.js' }
+        { name: 'Situational', icon: 'fa-location-dot', path: './scripts/persistentGuides/situationalGuide.js' },
+        { name: 'Thinking', icon: 'fa-brain', path: './scripts/persistentGuides/thinkingGuide.js' },
+        { name: 'Clothes', icon: 'fa-shirt', path: './scripts/persistentGuides/clothesGuide.js' },
+        { name: 'State', icon: 'fa-face-smile', path: './scripts/persistentGuides/stateGuide.js' },
+        { name: 'Rules', icon: 'fa-list-ol', path: './scripts/persistentGuides/rulesGuide.js' },
+        { name: 'Custom', icon: 'fa-pen-to-square', path: './scripts/persistentGuides/customGuide.js' },
+        { name: 'Custom Auto', icon: 'fa-robot', path: './scripts/persistentGuides/customAutoGuide.js' },
+        { name: 'Fun', icon: 'fa-gamepad', path: './scripts/persistentGuides/funGuide.js' }
     ];
 
     const toolGuides = [
-        { name: 'Show Guides', icon: 'fa-eye', path: '../persistentGuides/showGuides.js' },
-        { name: 'Edit Guides', icon: 'fa-edit', path: '../persistentGuides/editGuides.js' },
-        { name: 'Flush Guides', icon: 'fa-trash', path: '../persistentGuides/flushGuides.js' },
-        { name: 'Stat Tracker', icon: 'fa-chart-line', path: '../persistentGuides/trackerGuide.js' }
+        { name: 'Show Guides', icon: 'fa-eye', path: './scripts/persistentGuides/showGuides.js' },
+        { name: 'Edit Guides', icon: 'fa-edit', path: './scripts/persistentGuides/editGuides.js' },
+        { name: 'Flush Guides', icon: 'fa-trash', path: './scripts/persistentGuides/flushGuides.js' },
+        { name: 'Stat Tracker', icon: 'fa-chart-line', path: './scripts/persistentGuides/trackerGuide.js' }
     ];
 
     const addGuideItem = (g) => {
@@ -387,7 +394,7 @@ export function initializeTargetButton() {
     $("#chat").off("click", ".guided_undo_rewrite_button").on("click", ".guided_undo_rewrite_button", async function(e) {
         e.stopPropagation();
         const mesId = $(this).closest(".mes").attr("mesid");
-        const module = await safeImport('../guidedRewrite.js', 'Guided Rewrite');
+        const module = await safeImport('./scripts/guidedRewrite.js', 'Guided Rewrite');
         if (module?.undoRewrite) module.undoRewrite(mesId);
     });
 }
@@ -395,11 +402,22 @@ export function initializeTargetButton() {
 /**
  * Initialize Context Menu for Rewrite
  */
-export function initRewriteMenu() {
+export async function initRewriteMenu() {
+    await loadRewriteContextMenu(); // Load the external HTML
     document.addEventListener('selectionchange', () => {
-        setTimeout(processSelection, 50);
+        // Debounce or slight delay to allow click events on menu to potentially fire before selection clears
+        setTimeout(() => {
+             // Only process if we aren't clicking the menu
+             const menu = document.getElementById('gg_rewrite_menu');
+             if (menu && menu.matches(':hover')) {
+                 debugLog('Skipping selection processing because hovering menu');
+                 return;
+             }
+             processSelection();
+        }, 100);
     });
     document.addEventListener('mousedown', (e) => {
+        const ggRewriteMenu = document.getElementById('gg_rewrite_menu');
         if (ggRewriteMenu && !ggRewriteMenu.contains(e.target)) {
             removeGGREwriteMenu();
         }
@@ -410,114 +428,183 @@ export function initRewriteMenu() {
     }
 }
 
+/**
+ * Loads the Rewrite Context Menu HTML into the DOM.
+ */
+async function loadRewriteContextMenu() {
+    try {
+        // Always remove existing menu to ensure fresh listeners and HTML
+        const existingMenu = document.getElementById('gg_rewrite_menu');
+        if (existingMenu) {
+             debugLog('Removing existing Rewrite Context Menu to ensure fresh initialization.');
+             existingMenu.remove();
+        }
+
+        const response = await fetch('/scripts/extensions/third-party/GuidedGenerations-Extension/html/rewriteContextMenu.html');
+        if (response.ok) {
+            const html = await response.text();
+            document.body.insertAdjacentHTML('beforeend', html);
+            debugLog('Rewrite Context Menu HTML loaded successfully.');
+            attachRewriteMenuListeners();
+        } else {
+            debugError('Failed to load Rewrite Context Menu HTML:', response.statusText);
+        }
+    } catch (error) {
+        debugError('Error loading Rewrite Context Menu HTML:', error);
+    }
+}
+
+function attachRewriteMenuListeners() {
+    const menu = document.getElementById('gg_rewrite_menu');
+    if (!menu) return;
+
+    // Monitor mousedown to see if it precedes selection change
+    menu.addEventListener('mousedown', (e) => {
+        debugLog('Rewrite Menu: mousedown detected on menu');
+    });
+
+    // Delegate click events for menu items
+    menu.addEventListener('click', async (e) => {
+        debugLog('Rewrite Menu: Click detected', e.target);
+        const item = e.target.closest('.gg-ctx-item');
+        if (!item) {
+            debugLog('Rewrite Menu: No item found via closest()');
+            return;
+        }
+
+        e.stopPropagation(); // Prevent document click from immediately closing if needed elsewhere
+
+        if (item.classList.contains('gg-ctx-settings')) {
+            // Settings action (placeholder for now, or open settings)
+             debugLog('Rewrite Menu: Settings clicked');
+             // Example: open settings or toggle something
+        } else {
+            const action = item.getAttribute('data-action');
+            debugLog(`Rewrite Menu: Action triggered: ${action}`);
+            if (action) {
+                // Capture current selection info before opening popup or clearing selection
+                // _currentSelectionInfo is populated during processSelection, ensuring it matches
+                // what the user actually selected.
+                const selectionToUse = _currentSelectionInfo; 
+                
+                // Hide menu immediately to prevent it from being captured in any DOM snapshots or overlapping
+                removeGGREwriteMenu();
+
+                if (action === 'instruct') {
+                    // Pull custom instructions from the textarea instead of a popup
+                    const textarea = document.getElementById('send_textarea');
+                    const instructions = textarea ? textarea.value.trim() : '';
+                    
+                    debugLog('Rewrite Menu: Using textarea input as instructions:', instructions);
+                    if (instructions) {
+                            // Pass instructions AND the preserved selection info to guided rewrite logic
+                            const module = safeImport('./scripts/guidedRewrite.js', 'Guided Rewrite');
+                            module.then(m => {
+                                if (m && m.handleGuidedRewrite) {
+                                    // Pass preserved selection info
+                                    m.handleGuidedRewrite('Custom', instructions, selectionToUse); 
+                                } else if (m && m.handleRewriteAction) {
+                                    debugWarn('GuidedGenerations [DEBUG] Using deprecated handleRewriteAction for instruct');
+                                    m.handleRewriteAction('instruct', _currentSelectedText, instructions);
+                                } else {
+                                    debugError('GuidedGenerations [DEBUG] No suitable rewrite handler found on module for instruct');
+                                }
+                            });
+                    } else {
+                        // Optional: Alert user if textarea is empty when they click "Custom"
+                        alert('Please enter your custom instructions in the chat input box first.');
+                    }
+                } else {
+                    const module = await safeImport('./scripts/guidedRewrite.js', 'Guided Rewrite');
+                    
+                     if (module && (module.handleGuidedRewrite || module.handleRewriteAction)) {
+                         // Pass preserved selection info if needed (handleRewriteAction might need update too)
+                         // But likely handleGuidedRewrite is the modern entry point.
+                         // For now assume standard actions also benefit from preserved selection if rewritten to use handleGuidedRewrite
+                         if (module.handleGuidedRewrite) {
+                            // Capitalize action to match Switch case in guidedRewrite.js (e.g. 'rewrite' -> 'Rewrite')
+                            const mode = action.charAt(0).toUpperCase() + action.slice(1);
+                            module.handleGuidedRewrite(mode, '', selectionToUse);
+                         } else {
+                            module.handleRewriteAction(action, _currentSelectedText);
+                         }
+                    } else {
+                        debugError('GuidedGenerations [DEBUG] No suitable rewrite handler found on module for action:', action);
+                    }
+                }
+            }
+        }
+    });
+}
+
+
 function processSelection() {
+    debugLog('processSelection running');
     const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
+    _currentSelectedText = selection.toString().trim();
+    
+    // Capture full selection details immediately
+    // This function must be imported from guidedRewrite.js (or exportManager) to ensure consistent structure
+    _currentSelectionInfo = getSelectedTextInfo(); 
+
+    // Log if we are about to hide the menu while it might be needed
+    const menu = document.getElementById('gg_rewrite_menu');
+    if (menu && menu.classList.contains('shown')) {
+        debugLog('processSelection: Hiding existing menu due to selection change.');
+    }
+
     removeGGREwriteMenu();
 
-    if (selectedText.length > 0) {
+    if (_currentSelectedText.length > 0) {
         const range = selection.getRangeAt(0);
         const startMesText = range.startContainer.parentElement?.closest('.mes_text');
         const endMesText = range.endContainer.parentElement?.closest('.mes_text');
 
         if (startMesText && endMesText && startMesText === endMesText) {
-            createGGREwriteMenu();
+             showGGREwriteMenu(range); // Renamed from createGGREwriteMenu to reflect showing hidden element
         }
-    }
-}
-
-let ggRewriteMenu = null;
-
-function createGGREwriteMenu() {
-    removeGGREwriteMenu();
-
-    ggRewriteMenu = document.createElement('ul');
-    ggRewriteMenu.className = 'gg-ctx-menu';
-    
-    const options = [
-        { name: 'Rewrite', icon: 'fa-pencil-alt' },
-        { name: 'Shorten', icon: 'fa-compress-arrows-alt' },
-        { name: 'Expand', icon: 'fa-expand-arrows-alt' },
-        { name: 'Custom', icon: 'fa-magic' }
-    ];
-
-    options.forEach(opt => {
-        const li = document.createElement('li');
-        li.className = 'gg-ctx-item interactable';
-        li.innerHTML = `<i class="fa-solid ${opt.icon}"></i> ${opt.name}`;
-        li.addEventListener('mousedown', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const module = await safeImport('../persistentGuides/guideExports.js', 'Guide Exports');
-            if (module?.handleGuidedRewrite) {
-                let customInstructions = null;
-                if (opt.name === 'Custom') {
-                    customInstructions = await getContext().callPopup('Enter custom rewrite instructions:', 'input');
-                    if (!customInstructions) return;
-                }
-                await module.handleGuidedRewrite(opt.name, customInstructions);
-            }
-            removeGGREwriteMenu();
-        });
-        ggRewriteMenu.appendChild(li);
-    });
-
-    document.body.appendChild(ggRewriteMenu);
-    positionGGREwriteMenu();
-}
-
-function positionGGREwriteMenu() {
-    if (!ggRewriteMenu) return;
-    const selection = window.getSelection();
-    if (selection.rangeCount === 0) return;
-    
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    
-    let left = rect.left + window.scrollX;
-    let top = rect.bottom + window.scrollY + 5;
-    
-    if (left + ggRewriteMenu.offsetWidth > window.innerWidth) {
-        left = window.innerWidth - ggRewriteMenu.offsetWidth - 10;
-    }
-    if (top + ggRewriteMenu.offsetHeight > window.innerHeight) {
-        top = rect.top + window.scrollY - ggRewriteMenu.offsetHeight - 5;
-    }
-
-    ggRewriteMenu.style.left = `${left}px`;
-    ggRewriteMenu.style.top = `${top}px`;
-}
-
-function removeGGREwriteMenu() {
-    if (ggRewriteMenu) {
-        ggRewriteMenu.remove();
-        ggRewriteMenu = null;
     }
 }
 
 /**
- * Check Version and Notify
+ * Shows and positions the Rewrite Context Menu.
  */
-async function checkVersionAndNotify() {
-    const settings = getSettings();
-    // Use safe import for constants to avoid circular issues
-    const constants = await safeImport('../utils/constants.js', 'Constants');
+function showGGREwriteMenu(range) {
+    const menu = document.getElementById('gg_rewrite_menu');
+    if (!menu) return;
+
+    const rect = range.getBoundingClientRect();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
+
+    menu.style.display = 'block'; // Make it visible to calculate dimensions
     
-    if (!settings || !constants?.defaultSettings) return;
-    const defaultSettings = constants.defaultSettings;
+    // Simple positioning above the selection
+    const menuHeight = menu.offsetHeight;
+    let top = rect.top + scrollTop - menuHeight - 10;
+    let left = rect.left + scrollLeft;
 
-    const currentVersionInSettings = settings.LastPatchNoteVersion;
-    const defaultVersion = defaultSettings.LastPatchNoteVersion;
+    // Adjust if goes off screen (basic check)
+    if (top < 0) top = rect.bottom + scrollTop + 10; 
 
-    if (!currentVersionInSettings || currentVersionInSettings < defaultVersion) {
-        const popupTitle = `${extensionName} v${defaultVersion} Updated`;
-        const messageContent = `This version includes an update to Auto-Triggered Guides: they now also run when you use the normal SillyTavern Send button (or press Enter to send).\n\nMany of the default Prompts for the Guides have also been updated.`;
-        
-        const userAcknowledged = await showVersionNotification(popupTitle, messageContent);
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+    menu.classList.add('shown');
+}
 
-        if (userAcknowledged) {
-            updateSetting('LastPatchNoteVersion', defaultVersion);
-        }
+/**
+ * Hides the Rewrite Context Menu.
+ */
+function removeGGREwriteMenu() {
+    const menu = document.getElementById('gg_rewrite_menu');
+    if (menu) {
+        menu.style.display = 'none';
+        menu.classList.remove('shown');
     }
+}
+
+function positionGGREwriteMenu() {
+    // Logic to update position on scroll if needed, 
+    // or just hide it on scroll which is often simpler/cleaner.
+    removeGGREwriteMenu();
 }

@@ -1,149 +1,157 @@
-/**
- * @file Contains the logic for the Guided Response button.
- */
-import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
-import { chat, redisplayChat } from '/script.js';
+import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext, chat, redisplayChat } from './utils/exportManager.js';
+import { getTokenCountAsync } from '/scripts/tokenizers.js';
 
 // Import the guide scripts for direct execution
-import thinkingGuide from './persistentGuides/thinkingGuide.js'; // Correct relative path
-import stateGuide from './persistentGuides/stateGuide.js'; // Correct relative path
-import clothesGuide from './persistentGuides/clothesGuide.js'; // Correct relative path
-import customAutoGuide from './persistentGuides/customAutoGuide.js'; // Import the new Custom Auto Guide
+import thinkingGuide from './persistentGuides/thinkingGuide.js';
+import stateGuide from './persistentGuides/stateGuide.js';
+import clothesGuide from './persistentGuides/clothesGuide.js';
+import customAutoGuide from './persistentGuides/customAutoGuide.js';
 
 const extensionName = "GuidedGenerations-Extension";
 
+/**
+ * Executes a guided response generation.
+ * Handles both single-character and group chat scenarios with instruction injection and guide execution.
+ */
 const guidedResponse = async () => {
     const textarea = document.getElementById('send_textarea');
     if (!textarea) {
-        console.error('[GuidedGenerations][Response] Textarea #send_textarea not found.');
+        console.error(`[${extensionName}][Response] Textarea #send_textarea not found.`);
         return;
     }
 
-    // Check for target message
-    let targetIndex = -1;
-    if (typeof window.GuidedGenerations !== 'undefined' && typeof window.GuidedGenerations.getGuidedGenerationTargetMessageId === 'function') {
+    const context = getContext();
+    if (!context || typeof context.executeSlashCommandsWithOptions !== 'function') {
+        console.error(`[${extensionName}][Response] SillyTavern context or required execution method not available.`);
+        return;
+    }
+
+    const originalInput = textarea.value;
+    const settings = extension_settings[extensionName] || {};
+    const injectionRole = settings.injectionEndRole ?? 'system';
+    const promptTemplate = settings.promptGuidedResponse ?? '';
+    const filledPrompt = promptTemplate.replace('{{input}}', originalInput);
+    const depth = settings.depthPromptGuidedResponse ?? 0;
+
+    // --- TOKEN COUNTING (INPUT) ---
+    if (originalInput.trim()) {
+        const inputTokens = await getTokenCountAsync(originalInput);
+        debugLog(`Input Token Count (Response): ${inputTokens}`);
+    }
+
+    // Determine target message index
+    let targetIndex = chat.length - 1;
+    if (typeof window.GuidedGenerations?.getGuidedGenerationTargetMessageId === 'function') {
         const manualTarget = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
         if (manualTarget !== null && manualTarget !== undefined) {
-             const parsedTarget = parseInt(manualTarget);
-             if (!isNaN(parsedTarget) && parsedTarget >= 0 && parsedTarget < chat.length) {
-                 targetIndex = parsedTarget;
-                 debugLog(`[Response] Using manually set target message index: ${targetIndex}`);
-             }
+            const parsedTarget = parseInt(manualTarget);
+            if (!isNaN(parsedTarget) && parsedTarget >= 0 && parsedTarget < chat.length) {
+                targetIndex = parsedTarget;
+                debugLog(`[${extensionName}][Response] Using manual target index: ${targetIndex}`);
+            }
         }
     }
 
-    const originalInput = textarea.value; // Get current input
-
-    // --- Get Setting ---
-    const injectionRole = extension_settings[extensionName]?.injectionEndRole ?? 'system'; // Get the role setting
-
-    // Save the input state using the shared function
+    // Save input for restoration
     setPreviousImpersonateInput(originalInput);
 
-    let stscriptCommand;
+    // Build the Slash Command script
+    let stscriptCommand = '';
 
-    // Use user-defined guided response prompt override
-    const promptTemplate = extension_settings[extensionName]?.promptGuidedResponse ?? '';
-    const filledPrompt = promptTemplate.replace('{{input}}', originalInput);
-    const depth = extension_settings[extensionName]?.depthPromptGuidedResponse ?? 0;
-
-    // Check if it's a group chat using the helper function
     if (isGroupChat()) {
-        const context = getContext();
-        let characterListJson = '[]'; // Default to empty JSON array
-
-        try {
-            const currentGroupId = context?.groupId; // Optional chaining for safety
-            const groups = context?.groups;         // Optional chaining for safety
-            let characterNames = [];
-
-            if (currentGroupId && groups && Array.isArray(groups)) {
-                const currentGroup = groups.find(group => group.id === currentGroupId);
-
-                if (currentGroup && currentGroup.members && Array.isArray(currentGroup.members)) {
-                    characterNames = currentGroup.members.map(member => {
-                        // Remove .png from the end of the member name if present
-                        if (typeof member === 'string' && member.toLowerCase().endsWith('.png')) {
-                            return member.slice(0, -4);
-                        }
-                        return member;
-                    }).filter(name => name); // Filter out any empty names after processing
-                }
-            }
-
-            if (characterNames.length > 0) {
-                // Convert the array to a JSON string for the /buttons command
-                characterListJson = JSON.stringify(characterNames);
-            } else {
-                console.warn(`[${extensionName}][Response] Processed group members resulted in empty list or group not found.`);
-            }
-        } catch (error) {
-            console.error(`[${extensionName}][Response] Error processing group members from context:`, error);
-        }
-
-        if (characterListJson !== '[]') {
-            // Pass the generated JSON string to the labels parameter
-            stscriptCommand = 
-                `// Group chat logic (JS handled selection list via context)|
-/buttons labels=${characterListJson} "Select member to respond as" |
-/setglobalvar key=selection {{pipe}} |
-/inject id=instruct position=chat ephemeral=true scan=true depth=${depth} role=${injectionRole} ${filledPrompt} |
-/trigger await=true {{getglobalvar::selection}}|
-`;
+        const characterList = getGroupMemberNames(context);
+        
+        if (characterList.length > 0) {
+            const characterListJson = JSON.stringify(characterList);
+            stscriptCommand = [
+                `// Group chat logic|`,
+                `/buttons labels=${characterListJson} "Select member to respond as" |`,
+                `/setglobalvar key=selection {{pipe}} |`,
+                `/inject id=instruct position=chat ephemeral=true scan=true depth=${depth} role=${injectionRole} ${filledPrompt} |`,
+                `/trigger await=true {{getglobalvar::selection}}|`
+            ].join('\n');
         } else {
-            console.warn(`[${extensionName}][Response] Could not get character list for group chat selection. Falling back to single character logic.`);
-            // Fallback to single character logic if character list is empty or invalid
-            stscriptCommand = 
-                `// Single character logic (fallback from group)|
-/inject id=instruct position=chat ephemeral=true scan=true depth=${depth} role=${injectionRole} ${filledPrompt}|
-/trigger await=true|
-`;
+            console.warn(`[${extensionName}][Response] Empty character list for group chat. Falling back to single-character logic.`);
+            stscriptCommand = buildSingleCharacterScript(depth, injectionRole, filledPrompt);
         }
     } else {
-        stscriptCommand = 
-            `// Single character logic|
-/inject id=instruct position=chat ephemeral=true scan=true depth=${depth} role=${injectionRole} ${filledPrompt}|
-/trigger await=true|
-`;
+        stscriptCommand = buildSingleCharacterScript(depth, injectionRole, filledPrompt);
     }
 
-    // Execute the main stscript command
-    const context = getContext();
-    if (context && typeof context.executeSlashCommandsWithOptions === 'function') {
-        // Apply Context Limit Truncation
-        const restore = truncateChatForContext(targetIndex);
-        
-        try {
-            // Execute the main command
-            await context.executeSlashCommandsWithOptions(stscriptCommand);
+    // Execute Guide Scripts before triggering generation
+    await executeGuideScripts();
 
-            debugLog('[Response] Executed Command:', stscriptCommand); // Log the command
-        } catch (error) {
-            console.error(`[GuidedGenerations][Response] Error executing Guided Response stscript: ${error}`);
-        } finally {
-            // Restore chat
-            restore();
-            
-            if (typeof redisplayChat === 'function') {
-                await redisplayChat();
-            }
+    // Apply Context Limit Truncation and Execute
+    const restore = truncateChatForContext(targetIndex);
+    
+    try {
+        await context.executeSlashCommandsWithOptions(stscriptCommand);
+        debugLog(`[${extensionName}][Response] Executed script.`);
 
-            // Always restore the input field from the shared state
-            const restoredInput = getPreviousImpersonateInput();
-            textarea.value = restoredInput;
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        // --- TOKEN COUNTING (OUTPUT) ---
+        const lastMessageData = chat[chat.length - 1];
+        if (lastMessageData && !lastMessageData.is_user) {
+            const outputTokens = await getTokenCountAsync(lastMessageData.mes);
+            debugLog(`Output Token Count (Response): ${outputTokens}`);
         }
-    } else {
-        console.error('[GuidedGenerations][Response] SillyTavern context is not available.');
-        // Even if context isn't available, attempt restore if textarea exists
-        if (textarea) {
-             const restoredInput = getPreviousImpersonateInput();
-             debugLog(`[Response] Restoring input field after context error: "${restoredInput}"`);
-             textarea.value = restoredInput;
-             textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+    } catch (error) {
+        console.error(`[${extensionName}][Response] Execution failed:`, error);
+    } finally {
+        restore();
+        if (typeof redisplayChat === 'function') await redisplayChat();
+
+        // Restore UI state
+        const restoredInput = getPreviousImpersonateInput();
+        textarea.value = restoredInput;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
     }
 };
 
-// Export the function
+/**
+ * Executes enabled guide scripts.
+ */
+async function executeGuideScripts() {
+    try {
+        await Promise.all([
+            thinkingGuide(),
+            stateGuide(),
+            clothesGuide(),
+            customAutoGuide()
+        ]);
+        debugLog(`[${extensionName}][Response] Guide scripts executed.`);
+    } catch (error) {
+        console.error(`[${extensionName}][Response] Error executing guide scripts:`, error);
+    }
+}
+
+/**
+ * Extracts character names from group members, stripping file extensions.
+ * @param {Object} context SillyTavern context.
+ * @returns {string[]} List of sanitized names.
+ */
+function getGroupMemberNames(context) {
+    try {
+        const currentGroup = context?.groups?.find(g => g.id === context?.groupId);
+        if (!currentGroup?.members) return [];
+
+        return currentGroup.members
+            .map(member => (typeof member === 'string' && member.toLowerCase().endsWith('.png')) ? member.slice(0, -4) : member)
+            .filter(name => name);
+    } catch (error) {
+        console.error(`[${extensionName}][Response] Error processing group members:`, error);
+        return [];
+    }
+}
+
+/**
+ * Builds the slash command script for single character generation.
+ */
+function buildSingleCharacterScript(depth, role, prompt) {
+    return [
+        `// Single character logic|`,
+        `/inject id=instruct position=chat ephemeral=true scan=true depth=${depth} role=${role} ${prompt}|`,
+        `/trigger await=true|`
+    ].join('\n');
+}
+
 export { guidedResponse };

@@ -17,7 +17,7 @@ const spellchecker = async () => {
     if (context && typeof context.executeSlashCommandsWithOptions === 'function') {
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../persistentGuides/guideExports.js');
+            const { getCurrentProfile } = await import('../utils/exportManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[Spellchecker] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {

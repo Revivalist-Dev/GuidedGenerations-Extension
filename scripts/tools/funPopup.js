@@ -170,7 +170,7 @@ export class FunPopup {
         let originalProfile = '';
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../persistentGuides/guideExports.js');
+            const { getCurrentProfile } = await import('../utils/exportManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[FunPopup] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {

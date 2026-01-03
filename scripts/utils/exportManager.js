@@ -5,12 +5,20 @@
 
 // Core imports from centralized managers
 import { getContext } from '/scripts/extensions.js';
+import { chat, saveChatConditional, addOneMessage, updateMessageBlock, redisplayChat } from '/script.js'; // Added updateMessageBlock and redisplayChat
+import { eventSource, event_types } from '/scripts/events.js';
 import { extensionName, defaultSettings } from './constants.js';
-import { debugLog, debugWarn, debugError, extension_settings } from '../../index.js';
-import { getSettings } from '../utils/settingsManager.js';
+import { 
+    debugLog, 
+    debugWarn, 
+    debugError,
+    getDebugMessagesAsText, 
+    clearDebugMessages 
+} from './logger.js';
+import { extension_settings } from '../../index.js'; // Keep for now as it might be initialized there, or consider moving to settingsManager if it holds the state
+import { getSettings, updateSetting } from '../utils/settingsManager.js';
 import { safeImport } from '../utils/importManager.js';
-
-// --- Utility Exports ---
+import { loadSettingsPanel, loadSettings, updateSettingsUI, addSettingsEventListeners } from '../settingsPanel.js';
 
 // Re-export context utilities
 export {
@@ -20,7 +28,25 @@ export {
     debugWarn,
     debugError,
     extension_settings,
-    defaultSettings
+    defaultSettings,
+    getDebugMessagesAsText,
+    clearDebugMessages,
+    getSettings,
+    updateSetting,
+    // Re-export from /script.js
+    chat,
+    saveChatConditional,
+    addOneMessage,
+    updateMessageBlock, // Re-exported
+    redisplayChat,      // Re-exported
+    // Re-export from /scripts/events.js
+    eventSource,
+    event_types,
+    // Re-export from settingsPanel.js
+    loadSettingsPanel,
+    loadSettings,
+    updateSettingsUI,
+    addSettingsEventListeners
 };
 
 /**
@@ -45,32 +71,33 @@ export {
 // --- Guide & Logic Facades ---
 // These functions lazily load the implementation to avoid load-time circular dependencies.
 
-export const clothesGuide = async (isAuto) => (await safeImport('../persistentGuides/clothesGuide.js', 'ClothesGuide'))?.default(isAuto);
-export const stateGuide = async (isAuto) => (await safeImport('../persistentGuides/stateGuide.js', 'StateGuide'))?.default(isAuto);
-export const thinkingGuide = async (isAuto) => (await safeImport('../persistentGuides/thinkingGuide.js', 'ThinkingGuide'))?.default(isAuto);
-export const situationalGuide = async () => (await safeImport('../persistentGuides/situationalGuide.js', 'SituationalGuide'))?.default();
-export const rulesGuide = async () => (await safeImport('../persistentGuides/rulesGuide.js', 'RulesGuide'))?.default();
-export const customGuide = async () => (await safeImport('../persistentGuides/customGuide.js', 'CustomGuide'))?.default();
-export const customAutoGuide = async (isAuto) => (await safeImport('../persistentGuides/customAutoGuide.js', 'CustomAutoGuide'))?.default(isAuto);
-export const funGuide = async () => (await safeImport('../persistentGuides/funGuide.js', 'FunGuide'))?.default();
+export const clothesGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/clothesGuide.js', 'ClothesGuide'))?.default(isAuto);
+export const stateGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/stateGuide.js', 'StateGuide'))?.default(isAuto);
+export const thinkingGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/thinkingGuide.js', 'ThinkingGuide'))?.default(isAuto);
+export const situationalGuide = async () => (await safeImport('./scripts/persistentGuides/situationalGuide.js', 'SituationalGuide'))?.default();
+export const rulesGuide = async () => (await safeImport('./scripts/persistentGuides/rulesGuide.js', 'RulesGuide'))?.default();
+export const customGuide = async () => (await safeImport('./scripts/persistentGuides/customGuide.js', 'CustomGuide'))?.default();
+export const customAutoGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/customAutoGuide.js', 'CustomAutoGuide'))?.default(isAuto);
+export const funGuide = async () => (await safeImport('./scripts/persistentGuides/funGuide.js', 'FunGuide'))?.default();
 
-export const executeTracker = async (trackerId) => (await safeImport('../persistentGuides/trackerLogic.js', 'TrackerLogic'))?.executeTracker(trackerId);
-export const checkAndExecuteTracker = async () => (await safeImport('../persistentGuides/trackerLogic.js', 'TrackerLogic'))?.checkAndExecuteTracker();
-export const createTrackerNote = async () => (await safeImport('../persistentGuides/trackerLogic.js', 'TrackerLogic'))?.createTrackerNote();
+export const executeTracker = async (trackerId) => (await safeImport('./scripts/persistentGuides/trackerLogic.js', 'TrackerLogic'))?.executeTracker(trackerId);
+export const checkAndExecuteTracker = async () => (await safeImport('./scripts/persistentGuides/trackerLogic.js', 'TrackerLogic'))?.checkAndExecuteTracker();
+export const createTrackerNote = async () => (await safeImport('./scripts/persistentGuides/trackerLogic.js', 'TrackerLogic'))?.createTrackerNote();
 
-export const flushGuides = async () => (await safeImport('../persistentGuides/flushGuides.js', 'FlushGuides'))?.default();
-export const showGuides = async () => (await safeImport('../persistentGuides/showGuides.js', 'ShowGuides'))?.default();
-export const editGuides = async () => (await safeImport('../persistentGuides/editGuides.js', 'EditGuides'))?.default();
+export const flushGuides = async () => (await safeImport('./scripts/persistentGuides/flushGuides.js', 'FlushGuides'))?.default();
+export const showGuides = async () => (await safeImport('./scripts/persistentGuides/showGuides.js', 'ShowGuides'))?.default();
+export const editGuides = async () => (await safeImport('./scripts/persistentGuides/editGuides.js', 'EditGuides'))?.default();
 
 
 // --- Tool Facades ---
 
-export const clearInput = async () => (await safeImport('../tools/clearInput.js', 'ClearInput'))?.default();
-export const corrections = async () => (await safeImport('../tools/corrections.js', 'Corrections'))?.corrections();
-export const editIntros = async () => (await safeImport('../tools/editIntros.js', 'EditIntros'))?.default();
-export const spellchecker = async () => (await safeImport('../tools/spellchecker.js', 'Spellchecker'))?.spellchecker();
+export const clearInput = async () => (await safeImport('./scripts/tools/clearInput.js', 'ClearInput'))?.default();
+export const corrections = async () => (await safeImport('./scripts/tools/corrections.js', 'Corrections'))?.corrections();
+export const editIntros = async () => (await safeImport('./scripts/tools/editIntros.js', 'EditIntros'))?.default();
+export const spellchecker = async () => (await safeImport('./scripts/tools/spellchecker.js', 'Spellchecker'))?.spellchecker();
 
-export const handleGuidedRewrite = async (mode, input) => (await safeImport('../guidedRewrite.js', 'GuidedRewrite'))?.handleGuidedRewrite(mode, input);
+export const handleGuidedRewrite = async (mode, input, selectionInfo) => (await safeImport('./scripts/guidedRewrite.js', 'GuidedRewrite'))?.handleGuidedRewrite(mode, input, selectionInfo);
+export const getSelectedTextInfo = async () => (await safeImport('./scripts/guidedRewrite.js', 'GuidedRewrite'))?.getSelectedTextInfo();
 
 
 // --- Preset Utils Re-exports ---
@@ -87,18 +114,10 @@ export const switchToPreset = presetUtils.switchToPreset;
 export const withProfile = presetUtils.withProfile;
 
 
-import { chat, saveChatConditional, addOneMessage } from '/script.js';
-import { eventSource, event_types } from '/scripts/events.js';
 
 export const isGroupChat = () => !!getContext().groupId;
 
-export {
-    chat,
-    saveChatConditional,
-    eventSource,
-    event_types,
-    addOneMessage
-};
+
 
 // --- Helper Functions ---
 

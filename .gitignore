@@ -25,3 +25,10 @@ Wiki/
 RELEASE_NOTES.md
 # Ignore windsufr rules file
 .windsurfrules
+documentation/Codebase_Rework_Document.md
+documentation/cursorrules.mdc
+documentation/Prompt.md
+documentation/SourceTruth.md
+documentation/cursorrules.mdc
+documentation/TODO.md
+documentation/UI_Infrastructure_Document.md

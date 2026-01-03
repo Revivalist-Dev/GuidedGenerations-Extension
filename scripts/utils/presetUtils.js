@@ -1,4 +1,4 @@
-import { debugLog, debugWarn, extensionName, extension_settings } from './exportManager.js'; // Import from central hub
+import { debugLog, debugWarn, extensionName, extension_settings } from '../../index.js'; // Import directly from root to avoid circularity
 
 // Event listener management for profile and preset switching
 let eventListenersInitialized = false;
@@ -639,7 +639,7 @@ export async function getPresetsForApiType(apiType) {
 
         const presetList = presetManager.getPresetList();
         debugLog(`[${extensionName}] Presets for ${apiType} (${apiId}):`, presetList);
-        return presetList || [];
+        return Array.isArray(presetList) ? presetList : [];
     } catch (error) {
         debugWarn(`[${extensionName}] Error getting presets for API type:`, error);
         return [];

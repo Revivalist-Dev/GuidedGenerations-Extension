@@ -1,18 +1,18 @@
-import { extensionName, debugLog, debugWarn, debugError } from '../../index.js';
+import { extensionName } from './constants.js';
+import { debugLog, debugWarn, debugError } from './logger.js';
 
-// Base URL detection for consistent path resolution
+// Base URL detection for consistent path resolution (resolves to extension root)
 const scriptUrl = document.currentScript?.src || import.meta.url;
-const baseUrl = scriptUrl.substring(0, scriptUrl.lastIndexOf('/') + 1);
+const baseUrl = new URL('../../', scriptUrl).href;
 
 /**
  * Resolves a path relative to the extension's root directory.
- * @param {string} path - Relative path (e.g., 'scripts/utils/settingsManager.js')
+ * @param {string} path - Path relative to extension root (e.g., './scripts/utils/settingsManager.js')
  * @returns {string} Absolute or root-relative URL
  */
 export function resolvePath(path) {
-    // Remove leading ./ or /
-    const cleanPath = path.replace(/^\.?\//, '');
-    return new URL(cleanPath, baseUrl).href;
+    // Ensure path is treated as relative to the base if it starts with ./ or ../
+    return new URL(path, baseUrl).href;
 }
 
 /**
@@ -21,7 +21,7 @@ export function resolvePath(path) {
  */
 export async function safeImport(path, componentName) {
     try {
-        // Use resolvePath only if path starts with ./ or ../ (relative)
+        // Always resolve relative paths against the extension root
         const finalPath = (path.startsWith('./') || path.startsWith('../')) 
             ? resolvePath(path) 
             : path;
@@ -29,7 +29,7 @@ export async function safeImport(path, componentName) {
         const module = await import(finalPath);
         return module;
     } catch (error) {
-        debugError(`[${extensionName}] Failed to import ${componentName} from ${path}:`, error);
+        debugError(`[${extensionName}] Failed to import ${componentName} from ${path} (resolved to ${resolvePath(path)}):`, error);
         return null;
     }
 }
