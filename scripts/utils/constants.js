@@ -30,6 +30,7 @@ export const defaultSettings = {
     promptExpand: '[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Lengthen it by roughly 20%.[/INST]',
     promptCustom: '[INST]Rewrite this section of text: """{{rewrite}}""" according to the following instructions: "{{input}}". Keep the general style. Do not list alternatives and only print the result without prefix or suffix.[/INST]',
     highlightDuration: 3000,
+    showDiffView: true,
     
     // Profile and Preset settings for each guide
     profileClothes: '', presetClothes: '', profileClothesApiType: '',
@@ -71,3 +72,5 @@ export const defaultSettings = {
 
     LastPatchNoteVersion: '1.4.3'
 };
+
+

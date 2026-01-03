@@ -3,7 +3,7 @@
  * @description Handles the automatic execution of trackers based on chat metadata configuration.
  */
 
-import { getContext, extensionName, debugLog, handleSwitching } from '../utils/exportManager.js'; // Import from central hub
+import { getContext, extensionName, debugLog, handleSwitching } from '../utils/moduleManager.js'; // Import from central hub
 
 /**
  * Executes the tracker logic automatically when triggered
@@ -322,3 +322,5 @@ ${trackerUpdate}
         console.error(`[GuidedGenerations] Error creating ${trackerName} note:`, error);
     }
 }
+
+

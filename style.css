@@ -648,6 +648,22 @@
     transition: background-color 0.2s;
 }
 
+.gg-ctx-header {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+}
+
+.gg-ctx-header .gg-ctx-item {
+    padding: 8px 10px;
+    flex: 1;
+    justify-content: center;
+}
+
+.gg-ctx-diff-toggle.active {
+    color: var(--SmartThemeAccentColor);
+}
+
 .gg-ctx-item:hover {
     background-color: var(--SmartThemeHover);
     color: var(--SmartThemeUi);
@@ -659,6 +675,11 @@
 }
 
 /* Highlight the message row that is set as the guided generation target */
+.mes.gg-target {
+    border-left: 5px solid var(--SmartThemeAccentColor, #1e90ff);
+    background-color: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.1));
+}
+
 .mes_row.guided-generation-target {
     /* Use a subtle background color and border to indicate target */
     background-color: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.15)) !important; 
@@ -673,36 +694,128 @@
     align-items: center;
     cursor: pointer;
     /* Ensure visibility against potential parent overrides */
-    opacity: 1 !important; 
+    opacity: 0.3 !important; 
     visibility: visible !important;
+    color: var(--SmartThemeEmColor) !important;
+}
+
+.guided_target_button:hover {
+    opacity: 1 !important;
 }
 
 /* Style for the "Set as Target" button when it is active */
 .guided_target_button.active {
     /* Make the button visually distinct when active */
     background-color: var(--SmartThemeAccentColor, #1e90ff);
-    color: var(--SmartThemeBg, #ffffff); /* Ensure text/icon is visible */
+    color: var(--SmartThemeBg, #ffffff) !important; /* Ensure text/icon is visible */
     border-color: var(--SmartThemeAccentColor, #1e90ff);
     box-shadow: 0 0 8px rgba(30, 144, 255, 0.5); /* Subtle glow */
+    opacity: 1 !important;
 }
 
 /* Ensure the active button still looks good on hover */
 .guided_target_button.active:hover {
     background-color: var(--SmartThemeActColor, #00bfff); /* Use a slightly brighter accent color on hover */
-    color: var(--SmartThemeBg, #ffffff);
-    opacity: 1;
+    color: var(--SmartThemeBg, #ffffff) !important;
+    opacity: 1 !important;
 }
 
 /* Style for the Undo Rewrite Button */
 .guided_undo_rewrite_button {
-    color: var(--SmartThemeBodyColor);
+    color: var(--SmartThemeEmColor) !important;
     cursor: pointer;
     transition: color 0.2s, transform 0.2s;
+    opacity: 0.3 !important;
     /* Optional: add a specific color for the undo action, e.g., warning color */
     /* color: #f0ad4e; */ 
 }
 
 .guided_undo_rewrite_button:hover {
-    color: var(--SmartThemeAccentColor);
+    color: var(--SmartThemeAccentColor) !important;
     transform: rotate(-45deg); /* Visual cue for "undo/rewind" */
+    opacity: 1 !important;
 }
+
+/* Diff Viewer Styles */
+.gg-diff-added {
+    background-color: rgba(0, 255, 0, 0.2);
+    text-decoration: underline;
+    color: #4caf50;
+}
+.gg-diff-removed {
+    background-color: rgba(255, 0, 0, 0.2);
+    text-decoration: line-through;
+    color: #f44336;
+}
+.gg-diff-unchanged {
+    color: inherit;
+}
+.gg-diff-container {
+    padding: 15px;
+    background: var(--black30, #111);
+    border-radius: 5px;
+    border: 1px solid var(--grey30, #444);
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: var(--font-family);
+    line-height: 1.5;
+}
+
+/* Popup Styles */
+#gg-diff-popup.gg-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex; /* Overriding common .gg-popup { display: none } */
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+}
+.gg-popup-content {
+    background: var(--mainColor, #222);
+    border: 1px solid var(--grey30, #444);
+    border-radius: 10px;
+    width: 80%;
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    /* Override absolute positioning from existing .gg-popup-content if needed */
+    position: relative !important;
+    top: unset !important;
+    left: unset !important;
+    transform: unset !important;
+}
+.gg-popup-header {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--grey30, #444);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.gg-popup-header h3 {
+    margin: 0;
+}
+.gg-popup-close {
+    cursor: pointer;
+    font-size: 24px;
+}
+.gg-popup-body {
+    padding: 20px;
+}
+.gg-popup-footer {
+    padding: 10px 20px;
+    border-top: 1px solid var(--grey30, #444);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.gg-confirm-btn {
+    background-color: var(--green, #28a745) !important;
+    color: white !important;
+}
+

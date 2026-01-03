@@ -4,7 +4,7 @@ import { getContext, loadExtensionSettings, extension_settings, renderExtensionT
 // Centralized Utility Managers
 import { getSettings, updateSetting, migrateProfileSettings } from './scripts/utils/settingsManager.js';
 import { initializeEventListeners } from './scripts/utils/eventManager.js';
-import { safeImport } from './scripts/utils/importManager.js';
+import { safeImport } from './scripts/utils/moduleManager.js';
 
 // Functional module imports
 import { simpleSend } from './scripts/simpleSend.js';
@@ -17,7 +17,7 @@ import customAutoGuide from './scripts/persistentGuides/customAutoGuide.js'; // 
 import { getPresetManager } from '/scripts/preset-manager.js';
 import { loadSettingsPanel } from './scripts/settingsPanel.js';
 
-import { getProfileList, handleGuidedRewrite } from './scripts/utils/exportManager.js';
+import { getProfileList, handleGuidedRewrite } from './scripts/utils/moduleManager.js';
 
 // Import auto-triggerable guides
 import thinkingGuide from './scripts/persistentGuides/thinkingGuide.js';
@@ -60,7 +60,7 @@ export async function handleAutoTrigger(type, generateArgsObject, dryRun) {
     debugLog(`Autotrigger execution starting.`);
 
     // Lazy load guide functional logic
-    const exports = await safeImport('./scripts/utils/exportManager.js', 'Guide Engine');
+    const exports = await safeImport('./scripts/utils/moduleManager.js', 'Guide Engine');
     if (!exports) return;
 
     if (settings.autoTriggerThinking) await exports.thinkingGuide(true);
@@ -184,3 +184,4 @@ window.GuidedGenerations = {
 
 // Re-export for sub-modules
 export { updateSettingsUI, addSettingsEventListeners } from './scripts/settingsPanel.js';
+

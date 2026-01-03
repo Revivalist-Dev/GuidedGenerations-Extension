@@ -6,7 +6,7 @@
  * Executes the Flush Guides script to remove one or all active guides.
  * Allows users to select which guide to flush or remove all guides at once.
  */
-import { debugLog } from '../utils/exportManager.js'; // Import from central hub
+import { debugLog } from '../utils/moduleManager.js'; // Import from central hub
 
 const flushGuides = async () => { // Make function async
 	debugLog('[FlushGuides] Button clicked');
@@ -107,3 +107,5 @@ const flushGuides = async () => { // Make function async
 
 // Export the function for use in the main extension file
 export default flushGuides;
+
+

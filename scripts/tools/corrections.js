@@ -1,7 +1,7 @@
 /**
  * @file Contains the logic for the Corrections tool.
  */
-import { getContext, extension_settings, extensionName, debugLog, setPreviousImpersonateInput, generateNewSwipe, handleSwitching } from '../utils/exportManager.js';
+import { getContext, extension_settings, extensionName, debugLog, setPreviousImpersonateInput, generateNewSwipe, handleSwitching } from '../utils/moduleManager.js';
 
 // Helper function for delays (copied from guidedSwipe.js)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -42,7 +42,7 @@ export default async function corrections() {
     if (context && typeof context.executeSlashCommandsWithOptions === 'function') {
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../utils/exportManager.js');
+            const { getCurrentProfile } = await import('../utils/moduleManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[Corrections] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {
@@ -133,3 +133,5 @@ async function executeSTScript(stscript) { // Make helper async
 
 // Export the function
 export { corrections };
+
+

@@ -1,7 +1,7 @@
 /**
  * @file Contains the logic for the Spellcheck tool.
  */
-import { getContext, extension_settings, extensionName, debugLog, handleSwitching } from '../utils/exportManager.js';
+import { getContext, extension_settings, extensionName, debugLog, handleSwitching } from '../utils/moduleManager.js';
 
 const spellchecker = async () => {
     const textarea = document.getElementById('send_textarea');
@@ -17,7 +17,7 @@ const spellchecker = async () => {
     if (context && typeof context.executeSlashCommandsWithOptions === 'function') {
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../utils/exportManager.js');
+            const { getCurrentProfile } = await import('../utils/moduleManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[Spellchecker] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {
@@ -93,5 +93,7 @@ const spellchecker = async () => {
 
 // Export the function
 export { spellchecker };
+
+
 
 

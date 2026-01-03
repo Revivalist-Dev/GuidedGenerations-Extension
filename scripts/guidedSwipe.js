@@ -1,6 +1,6 @@
 // scripts/guidedSwipe.js
 
-import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './utils/moduleManager.js'; // Import from central hub
 import { swipe, chat, redisplayChat, Generate } from '/script.js';
 import { SWIPE_DIRECTION, SWIPE_SOURCE, OVERSWIPE_BEHAVIOR } from '/scripts/constants.js';
 import { guidedImpersonateSwipe } from './guidedImpersonateSwipe.js';
@@ -406,3 +406,5 @@ const guidedSwipe = async (event) => {
 
 // Export both functions
 export { guidedSwipe, generateNewSwipe };
+
+

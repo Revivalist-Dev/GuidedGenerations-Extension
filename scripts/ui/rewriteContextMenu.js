@@ -1,5 +1,5 @@
 import { debugLog, debugError } from '../../index.js';
-import { safeImport } from '../utils/importManager.js';
+import { safeImport } from '../utils/moduleManager.js';
 import { showCustomRewritePopup } from './uiManager.js'; // Will be a circular dependency, but we'll address that in a later step
 
 let ggRewriteMenu = null;
@@ -22,7 +22,7 @@ export function createGGREwriteMenu(currentSelectedText) {
                 e.stopPropagation();
                 const action = item.dataset.action;
                 
-                const module = await safeImport('./scripts/utils/exportManager.js', 'Export Manager');
+                const module = await safeImport('./scripts/utils/moduleManager.js', 'Export Manager');
                 if (module?.handleGuidedRewrite) {
                     let customInstructions = null;
                     let selectionInfo = null;
@@ -100,3 +100,5 @@ export function removeGGREwriteMenu() {
         ggRewriteMenu = null;
     }
 }
+
+

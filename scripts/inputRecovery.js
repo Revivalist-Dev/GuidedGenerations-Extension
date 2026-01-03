@@ -1,5 +1,5 @@
 // scripts/inputRecovery.js
-import { getPreviousImpersonateInput, debugLog } from './utils/exportManager.js'; // Import from central hub
+import { getPreviousImpersonateInput, debugLog } from './utils/moduleManager.js'; // Import from central hub
 
 const recoverInput = () => {
 	debugLog('[InputRecovery] Button clicked');
@@ -24,3 +24,5 @@ const recoverInput = () => {
 
 // Export the function
 export { recoverInput };
+
+

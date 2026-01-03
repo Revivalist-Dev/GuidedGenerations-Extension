@@ -1,4 +1,4 @@
-import { extension_settings, getContext, setPreviousImpersonateInput, getPreviousImpersonateInput, chat, eventSource, event_types, saveChatConditional, addOneMessage, debugLog, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { extension_settings, getContext, setPreviousImpersonateInput, getPreviousImpersonateInput, chat, eventSource, event_types, saveChatConditional, addOneMessage, debugLog, truncateChatForContext } from './utils/moduleManager.js'; // Import from central hub
 import { redisplayChat } from '/script.js';
 
 const extensionName = "GuidedGenerations-Extension";
@@ -216,3 +216,5 @@ const initGuidedContinueListeners = () => {
 };
 
 export { guidedContinue, initGuidedContinueListeners };
+
+

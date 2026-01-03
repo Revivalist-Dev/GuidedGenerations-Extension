@@ -31,7 +31,7 @@ const EDIT_INTROS_OPTIONS = {
 };
 
 import { generateNewSwipe } from '../guidedSwipe.js';
-import { extensionName, getContext, extension_settings, handleSwitching, debugLog } from '../utils/exportManager.js'; // Import from central hub
+import { extensionName, getContext, extension_settings, handleSwitching, debugLog } from '../utils/moduleManager.js'; // Import from central hub
 
 // Class to handle the popup functionality
 export class EditIntrosPopup {
@@ -401,7 +401,7 @@ export class EditIntrosPopup {
         let originalProfile = null;
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../utils/exportManager.js');
+            const { getCurrentProfile } = await import('../utils/moduleManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[EditIntros] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {
@@ -568,3 +568,5 @@ export class EditIntrosPopup {
 // Singleton instance
 const editIntrosPopup = new EditIntrosPopup();
 export default editIntrosPopup;
+
+

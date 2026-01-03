@@ -1,26 +1,61 @@
 /**
- * @file Central import/export hub for all GuidedGenerations extension modules.
- * Refactored to act as a Facade for internal logic, preventing circular dependencies.
+ * @file Centralized module management for Guided Generations.
+ * Combines dynamic import handling and centralized export facades to prevent circular dependencies.
  */
 
-// Core imports from centralized managers
-import { getContext } from '/scripts/extensions.js';
-import { chat, saveChatConditional, addOneMessage, updateMessageBlock, redisplayChat } from '/script.js'; // Added updateMessageBlock and redisplayChat
-import { eventSource, event_types } from '/scripts/events.js';
 import { extensionName, defaultSettings } from './constants.js';
-import { 
-    debugLog, 
-    debugWarn, 
-    debugError,
-    getDebugMessagesAsText, 
-    clearDebugMessages 
-} from './logger.js';
-import { extension_settings } from '../../index.js'; // Keep for now as it might be initialized there, or consider moving to settingsManager if it holds the state
-import { getSettings, updateSetting } from '../utils/settingsManager.js';
-import { safeImport } from '../utils/importManager.js';
+import { debugLog, debugWarn, debugError, getDebugMessagesAsText, clearDebugMessages } from './logger.js';
+import { getContext } from '/scripts/extensions.js';
+import { chat, saveChatConditional, addOneMessage, updateMessageBlock, redisplayChat } from '/script.js';
+import { eventSource, event_types } from '/scripts/events.js';
+import { extension_settings } from '../../index.js';
+import { getSettings, updateSetting } from './settingsManager.js';
 import { loadSettingsPanel, loadSettings, updateSettingsUI, addSettingsEventListeners } from '../settingsPanel.js';
+import { 
+    getPreviousImpersonateInput, 
+    setPreviousImpersonateInput, 
+    getLastImpersonateResult, 
+    setLastImpersonateResult 
+} from '../../index.js';
+import * as presetUtils from './presetUtils.js';
 
-// Re-export context utilities
+// --- Import Management Logic ---
+
+// Base URL detection for consistent path resolution (resolves to extension root)
+const scriptUrl = document.currentScript?.src || import.meta.url;
+const baseUrl = new URL('../../', scriptUrl).href;
+
+/**
+ * Resolves a path relative to the extension's root directory.
+ * @param {string} path - Path relative to extension root (e.g., './scripts/utils/settingsManager.js')
+ * @returns {string} Absolute or root-relative URL
+ */
+export function resolvePath(path) {
+    // Ensure path is treated as relative to the base if it starts with ./ or ../
+    return new URL(path, baseUrl).href;
+}
+
+/**
+ * Centralized import wrapper for Guided Generations.
+ * Handles dynamic imports with standardized error logging.
+ */
+export async function safeImport(path, componentName) {
+    try {
+        // Always resolve relative paths against the extension root
+        const finalPath = (path.startsWith('./') || path.startsWith('../')) 
+            ? resolvePath(path) 
+            : path;
+
+        const module = await import(finalPath);
+        return module;
+    } catch (error) {
+        debugError(`[${extensionName}] Failed to import ${componentName} from ${path} (resolved to ${resolvePath(path)}):`, error);
+        return null;
+    }
+}
+
+// --- Export Management & Facades ---
+
 export {
     getContext,
     extensionName,
@@ -37,8 +72,8 @@ export {
     chat,
     saveChatConditional,
     addOneMessage,
-    updateMessageBlock, // Re-exported
-    redisplayChat,      // Re-exported
+    updateMessageBlock,
+    redisplayChat,
     // Re-export from /scripts/events.js
     eventSource,
     event_types,
@@ -46,27 +81,13 @@ export {
     loadSettingsPanel,
     loadSettings,
     updateSettingsUI,
-    addSettingsEventListeners
-};
-
-/**
- * Shared state functions for impersonate input management
- * (Migrated from index.old logic)
- */
-import { 
-    getPreviousImpersonateInput, 
-    setPreviousImpersonateInput, 
-    getLastImpersonateResult, 
-    setLastImpersonateResult 
-} from '../../index.js';
-
-export {
+    addSettingsEventListeners,
+    // Re-export state from index.js
     getPreviousImpersonateInput,
     setPreviousImpersonateInput,
     getLastImpersonateResult,
     setLastImpersonateResult
 };
-
 
 // --- Guide & Logic Facades ---
 // These functions lazily load the implementation to avoid load-time circular dependencies.
@@ -101,9 +122,6 @@ export const getSelectedTextInfo = async () => (await safeImport('./scripts/guid
 
 
 // --- Preset Utils Re-exports ---
-// These are stateless utility functions, safe to re-export directly if module side-effects are managed.
-import * as presetUtils from '../utils/presetUtils.js';
-
 export const handleSwitching = presetUtils.handleSwitching;
 export const getProfileApiType = presetUtils.getProfileApiType;
 export const getPresetsForApiType = presetUtils.getPresetsForApiType;
@@ -113,19 +131,11 @@ export const switchToProfile = presetUtils.switchToProfile;
 export const switchToPreset = presetUtils.switchToPreset;
 export const withProfile = presetUtils.withProfile;
 
-
-
 export const isGroupChat = () => !!getContext().groupId;
-
-
-
-// --- Helper Functions ---
 
 /**
  * Temporarily truncates the global chat array to limit context for AI generation.
- * (Moved here or imported from a utils file if preferred, keeping for compatibility)
  */
-
 export function truncateChatForContext(targetIndex) {
     const limit = getSettings()?.contextMessageCount ?? 0;
     const fullBackup = [...chat];
@@ -147,3 +157,5 @@ export function truncateChatForContext(targetIndex) {
         debugLog(`[Context] Restored chat. Length: ${chat.length}`);
     };
 }
+
+

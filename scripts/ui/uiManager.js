@@ -3,7 +3,7 @@ import { debugLog, debugWarn, debugError } from '../utils/logger.js';
 import { extensionName, getImpersonateTemplate, setGuidedGenerationTargetMessageId, getGuidedGenerationTargetMessageId, updatePersistentGuideCounter } from '../../index.js';
 import { getSettings, updateSetting } from '../utils/settingsManager.js';
 import { getContext } from '/scripts/extensions.js';
-import { safeImport } from '../utils/importManager.js';
+import { safeImport } from '../utils/moduleManager.js';
 
 
 let _currentSelectedText = '';
@@ -367,27 +367,79 @@ export function setupQRMutationObserver() {
 export function initializeTargetButton() {
     const targetButtonHtml = `<div title="Set as Guided Generation Target" class="mes_button guided_target_button fa-solid fa-crosshairs interactable" tabindex="0" role="button"></div>`;
     const undoButtonHtml = `<div title="Undo Last Rewrite" class="mes_button guided_undo_rewrite_button fa-solid fa-rotate-left interactable" tabindex="0" role="button" style="display:none;"></div>`;
+    // Visual separator - inherits color from parent .mes_buttons
+    const spacerHtml = `<span class="guided_target_separator" style="margin: 0 5px; color: var(--SmartThemeEmColor); user-select: none;">|</span>`;
 
-    const $templateTarget = $("#message_template .mes_buttons .extraMesButtons");
-    if ($templateTarget.length) {
-        if ($templateTarget.find('.guided_undo_rewrite_button').length === 0) $templateTarget.prepend(undoButtonHtml);
-        if ($templateTarget.find('.guided_target_button').length === 0) $templateTarget.prepend(targetButtonHtml);
+    // Template Target - Move guided_target_button out of extraMesButtons to mes_buttons
+    const $templateButtons = $("#message_template .mes_buttons");
+    const $templateTarget = $templateButtons.find(".extraMesButtons");
+    
+    if ($templateButtons.length) {
+        // Remove from extraMesButtons if present (cleanup old version)
+        if ($templateTarget.length) {
+             $templateTarget.find('.guided_target_button').remove();
+             // Keep undo button in extra menu for now or move it too? Assuming undo stays hidden/rare.
+             if ($templateTarget.find('.guided_undo_rewrite_button').length === 0) $templateTarget.prepend(undoButtonHtml);
+        }
+        
+        // Add to main buttons container, e.g. before the Edit button
+        if ($templateButtons.find('.guided_target_button').length === 0) {
+            const editBtn = $templateButtons.find('.mes_edit');
+            if (editBtn.length) {
+                editBtn.before(spacerHtml + targetButtonHtml); // Add spacer before target button
+            } else {
+                $templateButtons.append(spacerHtml + targetButtonHtml);
+            }
+        }
     }
 
     $("#chat .mes").each(function() {
+        const $mesButtons = $(this).find(".mes_buttons");
         const $extraButtons = $(this).find(".extraMesButtons");
+        
         if ($extraButtons.length) {
-            if ($extraButtons.find(".guided_target_button").length === 0) $extraButtons.prepend(targetButtonHtml);
-            if ($extraButtons.find(".guided_undo_rewrite_button").length === 0) $extraButtons.prepend(undoButtonHtml);
+             // Cleanup old location
+             $extraButtons.find(".guided_target_button").remove();
+             
+             if ($extraButtons.find(".guided_undo_rewrite_button").length === 0) $extraButtons.prepend(undoButtonHtml);
+        }
+        
+        if ($mesButtons.length) {
+             if ($mesButtons.find(".guided_target_button").length === 0) {
+                 const editBtn = $mesButtons.find('.mes_edit');
+                 if (editBtn.length) {
+                     editBtn.before(spacerHtml + targetButtonHtml); // Add spacer before target button
+                 } else {
+                     $mesButtons.append(spacerHtml + targetButtonHtml);
+                 }
+             }
         }
     });
 
     $("#chat").off("click", ".guided_target_button").on("click", ".guided_target_button", function(e) {
         e.stopPropagation();
-        const mesId = $(this).closest(".mes").attr("mesid");
+        const $mes = $(this).closest(".mes");
+        const mesId = $mes.attr("mesid");
         if (mesId) {
             const current = getGuidedGenerationTargetMessageId();
-            setGuidedGenerationTargetMessageId(current == mesId ? null : mesId);
+            const isNowTarget = (current != mesId);
+            setGuidedGenerationTargetMessageId(isNowTarget ? mesId : null);
+            
+            // NEW WORKFLOW: 
+            // 1. Remove target status from any other message
+            $("#chat .mes.gg-target").removeClass("gg-target");
+            $("#chat .mes .guided_target_button.active").removeClass("active");
+            
+            if (isNowTarget) {
+                // 2. Add visual indicator to current target
+                $mes.addClass("gg-target");
+                $(this).addClass("active");
+                
+                // 3. Prompt user to select text
+                toastr.info("Message set as Guided Generation Target. Now select the text you wish to rewrite.", "Target Set");
+            } else {
+                toastr.info("Guided Generation Target cleared.", "Target Cleared");
+            }
         }
     });
 
@@ -458,6 +510,22 @@ function attachRewriteMenuListeners() {
     const menu = document.getElementById('gg_rewrite_menu');
     if (!menu) return;
 
+    // Update diff toggle state based on settings
+    const updateDiffToggleUI = () => {
+        const settings = getSettings();
+        const diffToggle = menu.querySelector('.gg-ctx-diff-toggle');
+        if (diffToggle) {
+            if (settings.showDiffView) {
+                diffToggle.classList.add('active');
+                diffToggle.querySelector('i').className = 'fa-solid fa-eye';
+            } else {
+                diffToggle.classList.remove('active');
+                diffToggle.querySelector('i').className = 'fa-solid fa-eye-slash';
+            }
+        }
+    };
+    updateDiffToggleUI();
+
     // Monitor mousedown to see if it precedes selection change
     menu.addEventListener('mousedown', (e) => {
         debugLog('Rewrite Menu: mousedown detected on menu');
@@ -466,6 +534,15 @@ function attachRewriteMenuListeners() {
     // Delegate click events for menu items
     menu.addEventListener('click', async (e) => {
         debugLog('Rewrite Menu: Click detected', e.target);
+        
+        const diffToggle = e.target.closest('.gg-ctx-diff-toggle');
+        if (diffToggle) {
+            const settings = getSettings();
+            updateSetting('showDiffView', !settings.showDiffView);
+            updateDiffToggleUI();
+            return;
+        }
+
         const item = e.target.closest('.gg-ctx-item');
         if (!item) {
             debugLog('Rewrite Menu: No item found via closest()');
@@ -608,3 +685,5 @@ function positionGGREwriteMenu() {
     // or just hide it on scroll which is often simpler/cleaner.
     removeGGREwriteMenu();
 }
+
+

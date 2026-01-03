@@ -2,7 +2,7 @@
  * Fun Popup - Handles UI for fun prompts and interactions
  */
 
-import { getContext, extension_settings, extensionName, debugLog, handleSwitching } from '../utils/exportManager.js'; // Import from central hub
+import { getContext, extension_settings, extensionName, debugLog, handleSwitching } from '../utils/moduleManager.js'; // Import from central hub
 
 // Map to store fun prompts loaded from file
 let FUN_PROMPTS = {};
@@ -170,7 +170,7 @@ export class FunPopup {
         let originalProfile = '';
         try {
             // Get current profile before any switching
-            const { getCurrentProfile } = await import('../utils/exportManager.js');
+            const { getCurrentProfile } = await import('../utils/moduleManager.js');
             originalProfile = await getCurrentProfile();
             debugLog(`[FunPopup] Captured original profile before switching: "${originalProfile}"`);
         } catch (error) {
@@ -278,3 +278,5 @@ export class FunPopup {
 // Singleton instance
 const funPopup = new FunPopup();
 export default funPopup;
+
+

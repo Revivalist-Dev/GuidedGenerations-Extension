@@ -1,7 +1,7 @@
 /**
  * @file Contains the logic for the Thinking option in the Persistent Guides menu.
  */
-import { getContext, extension_settings } from '../utils/exportManager.js'; // Import from central hub
+import { getContext, extension_settings } from '../utils/moduleManager.js'; // Import from central hub
 import { runGuideScript } from './runGuide.js';
 
 const extensionName = "GuidedGenerations-Extension";
@@ -31,3 +31,5 @@ const thinkingGuide = async (isAuto = false) => {
 
 // Export the function for use in the main extension file
 export default thinkingGuide;
+
+

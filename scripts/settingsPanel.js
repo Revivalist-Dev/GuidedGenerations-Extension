@@ -297,3 +297,5 @@ async function handleSettingChange(event) {
     updateSetting(key, value);
     debugLog(`[${extensionName}] Setting "${key}" updated to:`, value);
 }
+
+

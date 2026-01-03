@@ -1,4 +1,4 @@
-import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext, chat, redisplayChat } from './utils/exportManager.js';
+import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext, chat, redisplayChat } from './utils/moduleManager.js';
 import { getTokenCountAsync } from '/scripts/tokenizers.js';
 
 // Import the guide scripts for direct execution
@@ -155,3 +155,5 @@ function buildSingleCharacterScript(depth, role, prompt) {
 }
 
 export { guidedResponse };
+
+

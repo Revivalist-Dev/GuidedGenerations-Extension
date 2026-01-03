@@ -7,7 +7,7 @@
  * This allows for maximum flexibility in creating specialized context for characters.
  */
 import editGuidesPopup from './editGuidesPopup.js';
-import { debugLog } from '../utils/exportManager.js'; // Import from central hub
+import { debugLog } from '../utils/moduleManager.js'; // Import from central hub
 
 const customGuide = async () => {
 	debugLog('[CustomGuide] Button clicked');
@@ -39,3 +39,5 @@ const customGuide = async () => {
 
 // Export the function for use in the main extension file
 export default customGuide;
+
+

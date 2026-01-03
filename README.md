@@ -137,6 +137,6 @@ Contributions are welcome! Submit pull requests or open issues for improvements,
 
 If you find this extension helpful, please consider supporting the developers:
 
-- [☕ Support the Current Developer and his project to revive the website Roleplayersguild.com (REVIVALIST - @RoleplayersGuild)](https://ko-fi.com/roleplayersguild)
+- [☕ Support the Fork Developer and his project to revive the website Roleplayersguild.com (REVIVALIST - @RoleplayersGuild)](https://ko-fi.com/roleplayersguild)
 
 - [☕ Support the Original Creator (Samueras)](https://ko-fi.com/samueras)

@@ -3,7 +3,7 @@
  */
 
 // Import necessary items from central hub
-import { getContext, extension_settings, extensionName } from '../utils/exportManager.js'; // Import from central hub
+import { getContext, extension_settings, extensionName } from '../utils/moduleManager.js'; // Import from central hub
 import { runGuideScript } from './runGuide.js';
 
 /**
@@ -35,3 +35,5 @@ const stateGuide = async (isAuto = false) => {
 
 // Export the function for use in the main extension file
 export default stateGuide;
+
+

@@ -79,13 +79,14 @@ This list outlines the steps to develop the Guided Generations extension based o
     *   [ ] Refine UI with `style.css` to ensure a cohesive look and feel.
     *   [x] Style Tools Menu popup and action buttons for better user experience.
     *   [ ] Ensure consistency in styling across all UI elements.
-16. [ ] **Testing & Debugging:**
-    *   [ ] Test all features thoroughly, including edge cases and error handling.
-    *   [ ] Debug identified issues and performance bottlenecks.
+16. [x] **Testing & Debugging:**
+    *   [x] Test all features thoroughly, including edge cases and error handling.
+    *   [x] Debug identified issues and performance bottlenecks (Selection context loss, Whitespace discrepancies, Swipe synchronization).
 17. [x] **Documentation:**
     *   [x] Update `README.md` with final instructions and usage.
     *   [x] Create UI Infrastructure Document.
     *   [x] Create Codebase Rework Document (exports, imports, modification guidance).
+    *   [x] Update documentation with recent fixes for selections and swipes.
 
 **Phase 5: Character Description Management (New Feature)**
 
@@ -116,3 +117,4 @@ This list outlines the steps to develop the Guided Generations extension based o
 *   [ ] Further refine module imports/exports to ensure no hidden circular dependencies and efficient loading.
 *   [ ] Explore opportunities to leverage new SillyTavern APIs or best practices from the `public` folder for deeper integration.
 *   [ ] Ensure `_currentSelectedText` variable is reset or cleared appropriately after the custom rewrite popup is closed or operation is completed to prevent stale data. This will help with future UI enhancements and reduce potential bugs.
+

@@ -53,3 +53,5 @@ export function getDebugMessagesAsText() {
 export function clearDebugMessages() {
     debugMessages = [];
 }
+
+

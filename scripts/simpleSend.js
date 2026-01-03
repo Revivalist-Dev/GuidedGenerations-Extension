@@ -1,6 +1,6 @@
 // scripts/simpleSend.js
 
-import { setPreviousImpersonateInput, debugLog } from './utils/exportManager.js'; // Import from central hub
+import { setPreviousImpersonateInput, debugLog } from './utils/moduleManager.js'; // Import from central hub
 
 // State variable specific to simpleSend to prevent rapid clicks
 let isSending = false; 
@@ -43,3 +43,5 @@ const simpleSend = async () => {
 
 // Export the function
 export { simpleSend };
+
+

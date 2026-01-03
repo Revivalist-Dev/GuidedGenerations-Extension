@@ -69,3 +69,5 @@ function executeSTScript(stscript) {
         console.error(`${extensionName}: Error executing ST-Script:`, error);
     }
 }
+
+

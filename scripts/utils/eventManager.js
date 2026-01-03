@@ -76,3 +76,5 @@ function handlePresetChanged(presetInfo) {
     debugLog(`Preset change detected:`, presetInfo);
     window.dispatchEvent(new CustomEvent('gg-preset-changed', { detail: { presetInfo } }));
 }
+
+

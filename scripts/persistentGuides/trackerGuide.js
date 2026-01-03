@@ -3,7 +3,7 @@
  * @description Opens a popup for creating and configuring trackers to monitor specific aspects of your story or characters.
  */
 
-import { getContext, extensionName, debugLog } from '../utils/exportManager.js'; // Import from central hub
+import { getContext, extensionName, debugLog } from '../utils/moduleManager.js'; // Import from central hub
 import { executeTracker } from './trackerLogic.js';
 
 /**
@@ -325,3 +325,5 @@ export default async function trackerGuide() {
 		console.error(`[GuidedGenerations] Error opening Tracker popup: ${error}`);
 	}
 }
+
+

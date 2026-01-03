@@ -1,18 +1,92 @@
 import { getContext } from '/scripts/extensions.js';
 import { extensionName } from './utils/constants.js';
-import { debugLog } from './utils/logger.js';
+import { debugLog, debugError, debugWarn } from './utils/logger.js';
 import { getSettings } from './utils/settingsManager.js';
-import { handleSwitching, chat, saveChatConditional, updateMessageBlock } from './utils/exportManager.js';
+import { handleSwitching, chat, saveChatConditional, updateMessageBlock, redisplayChat } from './utils/moduleManager.js';
 import { getTokenCountAsync } from '/scripts/tokenizers.js';
+
+import { diffWords, renderDiffToHtml } from './utils/diffViewer.js';
 
 // --- Global State ---
 let rewriteHistory = {}; // Stores history of rewrites per message for undo
 
 /**
+ * Shows the diff preview popup and returns a promise that resolves to true (apply) or false (cancel)
+ */
+async function showDiffPreview(oldText, newText) {
+    return new Promise(async (resolve) => {
+        let popup = document.getElementById('gg-diff-popup');
+        if (!popup) {
+            try {
+                const response = await fetch('/scripts/extensions/third-party/GuidedGenerations-Extension/html/diffPopup.html');
+                if (response.ok) {
+                    const html = await response.text();
+                    document.body.insertAdjacentHTML('beforeend', html);
+                    popup = document.getElementById('gg-diff-popup');
+                }
+            } catch (err) {
+                debugError('Failed to load diff popup HTML:', err);
+                resolve(true); // Fallback to auto-apply if popup fails to load
+                return;
+            }
+        }
+
+        if (!popup) {
+            resolve(true);
+            return;
+        }
+
+        const container = popup.querySelector('#gg-diff-container');
+        const confirmBtn = popup.querySelector('#gg-diff-confirm');
+        const cancelBtn = popup.querySelector('#gg-diff-cancel');
+        const closeBtn = popup.querySelector('.gg-popup-close');
+
+        // Generate and render diff
+        const diff = diffWords(oldText, newText);
+        container.innerHTML = '';
+        container.appendChild(renderDiffToHtml(diff));
+
+        // Bring popup to foreground and prevent scrolling interference
+        popup.style.display = 'flex';
+        document.body.classList.add('gg-popup-open');
+
+        const cleanup = (result) => {
+            popup.style.display = 'none';
+            document.body.classList.remove('gg-popup-open');
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+            closeBtn.onclick = null;
+            resolve(result);
+        };
+
+        confirmBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            debugLog('Diff Popup: Confirm clicked');
+            cleanup(true);
+        };
+        
+        cancelBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            debugLog('Diff Popup: Cancel clicked');
+            cleanup(false);
+        };
+
+        closeBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            cleanup(false);
+        };
+    });
+}
+
+/**
  * Decoupled Rewrite Logic
  */
 export async function performRewrite(mode, selectionInfo, customInput = '') {
-    const { mesId, swipeId, selectedText, fullMessage } = selectionInfo;
+    // STRICT EDIT MODE: We only work with raw indices
+    const { start, end, fullMessage, selectedText } = selectionInfo;
     const settings = getSettings();
     const context = getContext();
 
@@ -29,8 +103,6 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
     let finalPrompt = promptTemplate.replace('{{rewrite}}', selectedText);
     let instruction = '';
     if (mode === 'Custom') {
-        // If customInput is provided (e.g. from textarea), use it.
-        // Otherwise, try to find the textarea and get the value.
         instruction = customInput;
         if (!instruction) {
             const textarea = document.getElementById('send_textarea');
@@ -73,27 +145,11 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
             debugLog(`Output Token Count (${mode}): ${outputTokens}`);
 
             // 4. Construct New Message
-            // Robust Replacement Logic:
-            // 1. Try exact replacement first
-            let newMessage = fullMessage.replace(selectedText, resultText); 
-            
-            // 2. If exact replacement fails, try trimmed replacement
-            if (newMessage === fullMessage) {
-                 const trimmedSelection = selectedText.trim();
-                 newMessage = fullMessage.replace(trimmedSelection, resultText);
-            }
+            // STRICT REPLACEMENT: Slice and splice using exact indices
+            // This is 100% reliable because we got start/end from the textarea directly
+            const newMessage = fullMessage.substring(0, start) + resultText + fullMessage.substring(end);
 
-            // 3. If trimmed replacement fails, try finding unique occurrence ignoring whitespace
-            if (newMessage === fullMessage) {
-                // Escape special regex chars
-                const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
-                // Create a pattern that allows flexible whitespace between words
-                const flexiblePattern = escapeRegExp(selectedText.trim()).replace(/\s+/g, '\\s+');
-                const regex = new RegExp(flexiblePattern);
-                newMessage = fullMessage.replace(regex, resultText);
-            }
-
-            return { success: true, newMessage, resultText };
+            return { success: true, newMessage, resultText, originalRaw: selectedText };
         }
     } catch (err) {
         console.error(`[${extensionName}] Rewrite generation failed:`, err);
@@ -114,24 +170,42 @@ export async function handleGuidedRewrite(mode, customInput = '', selectionInfo 
     }
     
     if (!selectionInfo) {
-        debugLog(`[${extensionName}] Rewrite aborted: No valid selection info.`);
+        // This is now expected if not in Edit Mode
+        debugLog(`[${extensionName}] Rewrite aborted: No valid raw text selection.`);
+        toastr.warning("Please edit the message (Pencil Icon) and select text inside the editor to use Guided Rewrite.", "Raw Text Selection Required");
         return;
     }
 
-    // UI: Show Placeholder
-    const placeholder = createStreamingPlaceholder(selectionInfo);
+    // UI: Show Placeholder (This is tricky in a Textarea, might skip or insert visual marker)
+    // For raw text editing, we probably shouldn't mess with the textarea content until we have the result
+    // to avoid losing undo history or cursor position if the user keeps typing.
+    // Instead, we'll just show a toast or loader.
+    const toastId = toastr.info("Generating rewrite...", "Guided Rewrite", { timeOut: 0, extendedTimeOut: 0 });
 
     // Logic: Perform Rewrite
     const result = await performRewrite(mode, selectionInfo, customInput);
+    
+    toastr.clear(toastId);
 
     if (result.success) {
-        // UI: Update Placeholder & Save
-        updateStreamingPlaceholder(placeholder, result.resultText);
-        
-        applyRewriteChange(selectionInfo, result.newMessage, result.resultText);
-    } else {
-        // UI: Revert
-        revertStreamingPlaceholder(placeholder, selectionInfo.selectedText);
+        const settings = getSettings();
+
+        // --- STRATEGY: APPLY FIRST, UNDO IF CANCELLED ---
+        debugLog(`[${extensionName}] Applying rewrite result immediately to editor...`);
+        applyRewriteChange(selectionInfo, result.newMessage);
+
+        if (settings.showDiffView) {
+            // UI: Show Diff Preview
+            const confirmed = await showDiffPreview(selectionInfo.selectedText, result.resultText);
+            
+            if (!confirmed) {
+                debugLog(`[${extensionName}] Diff rejected. Reverting change...`);
+                // Restore original content
+                undoRewrite(selectionInfo.mesId, selectionInfo.fullMessage); 
+            } else {
+                debugLog(`[${extensionName}] Diff confirmed. Keeping change.`);
+            }
+        }
     }
 }
 
@@ -139,160 +213,131 @@ export async function handleGuidedRewrite(mode, customInput = '', selectionInfo 
 /**
  * Applies the change to the chat and saves history
  */
-function applyRewriteChange(selectionInfo, newMessage, resultText) {
-    const { mesId, swipeId, fullMessage } = selectionInfo;
-    const settings = getSettings();
+function applyRewriteChange(selectionInfo, newMessage) {
+    const { mesId, swipeId, textarea } = selectionInfo;
+    const context = getContext();
 
-    // Save History
-    saveRewriteChange(mesId, swipeId, fullMessage, newMessage);
-
-    // Update Chat Object
-    chat[mesId].mes = newMessage;
-    if (chat[mesId].swipes && chat[mesId].swipes[swipeId] !== undefined) {
-        chat[mesId].swipes[swipeId] = newMessage;
-    }
-
-    // 4. Update UI
-    try {
-        updateMessageBlock(mesId, chat[mesId]);
-    } catch (e) {
-        debugError(`[${extensionName}] updateMessageBlock failed:`, e);
-    }
+    debugLog(`[${extensionName}] applyRewriteChange: Updating message ${mesId}`);
     
-    // Save the chat after visual update
-    saveChatConditional();
+    // 1. Update the Textarea directly if it's still there
+    if (textarea && document.body.contains(textarea)) {
+        // Preserve cursor position? Or select the new text?
+        // Let's try to update value and dispatch input
+        textarea.value = newMessage;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        debugLog(`[${extensionName}] Textarea value updated.`);
+    }
+
+    // 2. Update Global Chat Object (as backup and for persistence)
+    // Access global chat safely to ensure we are modifying the source of truth
+    let globalChat = (typeof chat !== 'undefined') ? chat : window.chat;
+    if (!globalChat && typeof SillyTavern !== 'undefined') globalChat = SillyTavern.chat;
+
+    if (globalChat && globalChat[mesId]) {
+        // Update message and swipe
+        // Note: SillyTavern might auto-update chat from textarea input event, but we do this to be safe
+        globalChat[mesId].mes = newMessage;
+        if (globalChat[mesId].swipes && globalChat[mesId].swipes[swipeId] !== undefined) {
+            globalChat[mesId].swipes[swipeId] = newMessage;
+        }
+    }
 }
 
 
 // --- DOM Helpers ---
 
 export function getSelectedTextInfo() {
-    const selection = window.getSelection();
-    if (selection.rangeCount === 0) return null;
-
-    const range = selection.getRangeAt(0);
-    const container = range.commonAncestorContainer;
+    // STRICT MODE: Only check active textarea/input
+    const activeElement = document.activeElement;
     
-    // Find parent message div
-    const mesDiv = container.nodeType === 1 ? container.closest('.mes') : container.parentElement.closest('.mes');
-    if (!mesDiv) return null;
+    if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
+        const start = activeElement.selectionStart;
+        const end = activeElement.selectionEnd;
+        const value = activeElement.value;
+        const selectedText = value.substring(start, end);
 
-    const mesId = mesDiv.getAttribute('mesid');
-    
-    // Get chat data
-    const context = getContext();
-    const messageData = chat[mesId];
-    if (!messageData) return null;
-    
-    // Current swipe handling
-    let swipeId = messageData.swipe_id !== undefined ? messageData.swipe_id : 0;
-    const fullMessage = messageData.mes;
-    const selectedText = selection.toString();
+        if (start === end || !selectedText) {
+            debugLog(`[${extensionName}] Textarea found but no text selected.`);
+            return null;
+        }
 
-    return {
-        mesId,
-        swipeId,
-        selectedText,
-        fullMessage,
-        rawStartOffset: -1, // Not used for replacement, but kept for compatibility
-        rawEndOffset: -1,   // Not used for replacement, but kept for compatibility
-        domRange: range.cloneRange() // Keep a reference to the DOM range for placeholder insertion if immediate
-    };
-}
+        // Try to find mesId
+        // The edit textarea is usually injected into the .mes-edit-box or similar
+        // We need to walk up to find .mes[mesid]
+        let current = activeElement;
+        let mesId = null;
+        while (current) {
+            if (current.classList && current.classList.contains('mes') && current.hasAttribute('mesid')) {
+                mesId = current.getAttribute('mesid');
+                break;
+            }
+            current = current.parentElement;
+        }
 
-function createStreamingPlaceholder(selectionInfo) {
-    // Try to use preserved DOM range if available and still valid
-    let range = selectionInfo.domRange;
-    
-    // Fallback to finding text if range is invalid (detached)
-    if (!range || range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE && !document.contains(range.commonAncestorContainer)) {
-         // Attempt to find the text again in the message div
-         // This is a "best effort" recovery if the DOM changed significantly
-         const mesDiv = document.querySelector(`.mes[mesid="${selectionInfo.mesId}"] .mes_text`);
-         if (mesDiv) {
-             // Simple text search - risky if text appears multiple times, but better than nothing
-             // In a robust implementation, we might walk the tree.
-             // For now, if we can't trust the range, we skip the placeholder to avoid destroying the wrong text
-             debugLog(`[${extensionName}] createStreamingPlaceholder: DOM range invalid, skipping placeholder to allow background rewrite.`);
-             return null;
-         }
-         return null;
+        // If we can't find mesId, we can still proceed if we just rely on the textarea
+        // But for undo/history we might need it. 
+        // Fallback: If no mesId found, we might be in the main chat input? 
+        // We usually don't rewrite user input in the main box via this tool, but maybe?
+        
+        let swipeId = 0;
+        if (mesId) {
+             let globalChat = (typeof chat !== 'undefined') ? chat : window.chat;
+             if (globalChat && globalChat[mesId]) {
+                 swipeId = globalChat[mesId].swipe_id || 0;
+             }
+        }
+
+        return {
+            mesId,
+            swipeId,
+            start,
+            end,
+            selectedText,
+            fullMessage: value,
+            textarea: activeElement // Keep reference to update it
+        };
     }
 
-    try {
-        range.deleteContents();
-        
-        const span = document.createElement('span');
-        span.className = 'animated-highlight';
-        span.textContent = '...'; 
-        range.insertNode(span);
-        
-        // Clear selection to avoid interference
-        const selection = window.getSelection();
-        if (selection) selection.removeAllRanges();
-        
-        return span;
-    } catch (e) {
-        debugLog(`[${extensionName}] createStreamingPlaceholder: Failed to manipulate range.`, e);
-        return null;
-    }
+    return null;
 }
 
-function updateStreamingPlaceholder(span, text) {
-    if (span) span.textContent = text;
-}
-
-function revertStreamingPlaceholder(span, originalText) {
-    if (span && span.parentNode) {
-        span.outerHTML = originalText;
-    }
-}
+// Placeholder functions no longer needed for Raw Edit Mode
+function createStreamingPlaceholder(selectionInfo) { return null; }
+function revertStreamingPlaceholder(span, originalText) { }
 
 
 // --- Undo Logic ---
 
-function saveRewriteChange(mesId, swipeId, oldContent, newContent) {
-    if (!rewriteHistory[mesId]) {
-        rewriteHistory[mesId] = [];
+export function undoRewrite(mesId, originalContent) {
+    // In Raw Edit Mode, undoing means setting the textarea back to originalContent
+    // We assume the textarea is still open/active
+    
+    const activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
+        // We should verify this is the SAME textarea if possible, or just trust the user hasn't clicked away
+        // Simple check: does it look like we are editing the same message?
+        // For simplicity, just update the value
+        activeElement.value = originalContent;
+        activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+        debugLog(`[${extensionName}] Undo: Reverted textarea content.`);
     }
     
-    rewriteHistory[mesId].push({
-        swipeId: swipeId,
-        oldContent: oldContent,
-        newContent: newContent,
-        timestamp: Date.now()
-    });
-
-    // Show undo button
-    const undoBtn = document.querySelector(`.mes[mesid="${mesId}"] .guided_undo_rewrite_button`);
-    if (undoBtn) undoBtn.style.display = 'inline-block';
-}
-
-export function undoRewrite(mesId) {
-    if (!rewriteHistory[mesId] || rewriteHistory[mesId].length === 0) return;
-
-    const lastChange = rewriteHistory[mesId].pop();
-    
-    // Revert content in chat object
-    chat[mesId].mes = lastChange.oldContent;
-    if (chat[mesId].swipes && chat[mesId].swipes[lastChange.swipeId] !== undefined) {
-        chat[mesId].swipes[lastChange.swipeId] = lastChange.oldContent;
-    }
-
-    // Update UI
-    updateMessageBlock(mesId, chat[mesId]);
-    
-    saveChatConditional();
-
-    // Hide button if empty
-    if (rewriteHistory[mesId].length === 0) {
-        const undoBtn = document.querySelector(`.mes[mesid="${mesId}"] .guided_undo_rewrite_button`);
-        if (undoBtn) undoBtn.style.display = 'none';
+    // Also revert global chat object
+    if (mesId !== null && mesId !== undefined) {
+        let globalChat = (typeof chat !== 'undefined') ? chat : window.chat;
+        if (globalChat && globalChat[mesId]) {
+             globalChat[mesId].mes = originalContent;
+             let swipeId = globalChat[mesId].swipe_id || 0;
+             if (globalChat[mesId].swipes && globalChat[mesId].swipes[swipeId] !== undefined) {
+                globalChat[mesId].swipes[swipeId] = originalContent;
+            }
+        }
     }
 }
 
 export function initRewriteUndo() {
     if (!window.GuidedGenerations) window.GuidedGenerations = {};
-    window.GuidedGenerations.saveRewriteChange = saveRewriteChange;
     window.GuidedGenerations.undoRewrite = undoRewrite;
 }
+
+

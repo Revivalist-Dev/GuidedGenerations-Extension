@@ -3,7 +3,7 @@
 /**
  * Edit Guides Popup - Handles UI for editing guide injections.
  */
-import { extension_settings, extensionName, debugLog } from '../utils/exportManager.js'; // Import from central hub
+import { extension_settings, extensionName, debugLog } from '../utils/moduleManager.js'; // Import from central hub
 
 export class EditGuidesPopup {
     constructor() {
@@ -457,3 +457,5 @@ export class EditGuidesPopup {
 // Create a singleton instance
 const editGuidesPopup = new EditGuidesPopup();
 export default editGuidesPopup; // Export the instance
+
+

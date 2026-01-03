@@ -1,5 +1,5 @@
 // scripts/guidedImpersonate.js
-import { getContext, extension_settings, extensionName, debugLog, getPreviousImpersonateInput, setPreviousImpersonateInput, getLastImpersonateResult, setLastImpersonateResult, truncateChatForContext } from './utils/exportManager.js'; // Import from central hub
+import { getContext, extension_settings, extensionName, debugLog, getPreviousImpersonateInput, setPreviousImpersonateInput, getLastImpersonateResult, setLastImpersonateResult, truncateChatForContext } from './utils/moduleManager.js'; // Import from central hub
 import { chat, redisplayChat } from '/script.js';
 
 /**
@@ -138,3 +138,5 @@ const guidedImpersonate = async (templateId = '1st') => {
 
 // Export the function
 export { guidedImpersonate };
+
+
