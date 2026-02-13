@@ -1,5 +1,5 @@
 import { getSettings } from './settingsManager.js';
-import { extensionName } from './constants.js';
+import { extensionName } from '../../index.js';
 
 let debugMessages = [];
 const MAX_DEBUG_MESSAGES = 1000;

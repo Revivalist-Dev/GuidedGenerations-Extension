@@ -1,0 +1,44 @@
+<!-- Template for Rewrite Settings section -->
+<div class="settings_section">
+    <h3>Rewrite Settings</h3>
+    <div class="setting_item">
+        <label for="gg_highlightDuration">Highlight Duration (ms):</label>
+        <input type="number" id="gg_highlightDuration" name="highlightDuration" class="gg-setting-input" min="0" step="500">
+    </div>
+    <div class="setting_item">
+        <label for="gg_rewriteContextCount">Context Message Count:</label>
+        <input type="number" id="gg_rewriteContextCount" name="rewriteContextCount" class="gg-setting-input" min="0" max="50" step="1">
+        <small>Number of previous messages to include as context for the rewrite.</small>
+    </div>
+    <div class="setting_item">
+        <label for="gg_rewriteCandidateCount">Candidate Count:</label>
+        <input type="number" id="gg_rewriteCandidateCount" name="rewriteCandidateCount" class="gg-setting-input" min="1" max="10" step="1">
+        <small>Number of variations to generate for each rewrite request.</small>
+    </div>
+    <div class="setting_item">
+        <label for="gg_rewriteTemperature">Rewrite Temperature:</label>
+        <input type="number" id="gg_rewriteTemperature" name="rewriteTemperature" class="gg-setting-input" min="0.1" max="2.0" step="0.05" value="1.0">
+        <small>Base randomness for rewrite generation (0.1 - 2.0). Higher = more random.</small>
+    </div>
+    <div class="setting_item">
+        <label for="gg_maxRewriteTokens">Max Rewrite Tokens:</label>
+        <input type="number" id="gg_maxRewriteTokens" name="maxRewriteTokens" class="gg-setting-input" min="50" max="2000" step="50" value="500">
+        <small>Maximum response length for rewrites.</small>
+    </div>
+    <div class="setting_item">
+        <label for="gg_promptRewrite">Rewrite Prompt:</label>
+        <textarea id="gg_promptRewrite" name="promptRewrite" class="gg-setting-input" rows="3"></textarea>
+    </div>
+    <div class="setting_item">
+        <label for="gg_promptShorten">Shorten Prompt:</label>
+        <textarea id="gg_promptShorten" name="promptShorten" class="gg-setting-input" rows="3"></textarea>
+    </div>
+    <div class="setting_item">
+        <label for="gg_promptExpand">Expand Prompt:</label>
+        <textarea id="gg_promptExpand" name="promptExpand" class="gg-setting-input" rows="3"></textarea>
+    </div>
+    <div class="setting_item">
+        <label for="gg_promptCustom">Custom Rewrite Prompt:</label>
+        <textarea id="gg_promptCustom" name="promptCustom" class="gg-setting-input" rows="3"></textarea>
+    </div>
+</div>

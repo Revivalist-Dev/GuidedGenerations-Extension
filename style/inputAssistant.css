@@ -1,0 +1,185 @@
+/* Container positioned in the document flow above the send textarea */
+#gg-input-assistant-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin: 0; 
+    z-index: 90;
+    width: 100%;
+    flex-shrink: 0; 
+}
+
+/* Flex row for banner and button */
+.gg-assistant-row {
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Center everything */
+    gap: 8px; 
+    width: 100%;
+}
+
+/* The Trigger Button */
+#gg-assistant-trigger {
+    /* Base styles matching .gg-action-button */
+    padding: 0; /* Content centered via flex */
+    border: 1px solid var(--SmartThemeBodyColor, #ccc);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em; /* 12px approx, smaller than button */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s, transform 0.2s;
+    background-color: var(--SmartThemeBg, transparent);
+    color: var(--SmartThemeBodyColor, #ccc);
+    
+    /* Specific dimensions */
+    flex-shrink: 0;
+    height: 28px; 
+    width: 28px;
+    box-sizing: border-box;
+}
+
+#gg-assistant-trigger:hover {
+    color: var(--smart-theme-color-hover, #fff);
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: scale(1.05);
+}
+
+#gg-assistant-trigger.loading {
+    animation: spin 2s linear infinite;
+    cursor: wait;
+    opacity: 1;
+    border-color: var(--smart-theme-color, #4CAF50);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* The Banner Area */
+#gg-assistant-banner {
+    flex-grow: 0; 
+    width: 90%; 
+    max-width: 95%; 
+    
+    background-color: rgba(30, 30, 30, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 4px 8px; 
+    font-size: 0.85em; 
+    color: #e0e0e0;
+    min-height: 24px; 
+    line-height: 1.2; 
+    
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+    
+    opacity: 1;
+    transform: none;
+}
+
+/* Idle State */
+#gg-assistant-banner.idle {
+    background-color: rgba(30, 30, 30, 0.2);
+    border-color: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+    justify-content: center; 
+}
+
+#gg-assistant-banner.idle .gg-banner-content {
+    font-style: italic;
+    text-align: center;
+    width: 100%; 
+}
+
+/* Loading State */
+#gg-assistant-banner.loading {
+    background-color: rgba(30, 30, 30, 0.8);
+    border-color: var(--smart-theme-color, #4CAF50);
+    color: #ccc;
+    cursor: wait;
+}
+
+/* Suggestion State */
+#gg-assistant-banner.suggestion {
+    background-color: var(--smart-bg-color, #2b2b2b);
+    border-color: var(--smart-theme-color, #4CAF50);
+}
+
+.gg-banner-content {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 5px;
+}
+
+/* Expand content on hover for suggestions only */
+#gg-assistant-banner.suggestion:hover .gg-banner-content {
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.gg-banner-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Action Buttons inside Banner */
+.gg-banner-btn {
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8em;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.gg-btn-accept {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+    border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.gg-btn-accept:hover {
+    background-color: rgba(76, 175, 80, 0.4);
+}
+
+.gg-btn-dismiss {
+    background-color: transparent;
+    color: #aaa;
+    border: 1px solid transparent;
+}
+
+.gg-btn-dismiss:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Ensure the wrapper pads the content so border is visible */
+#gg-input-assistant-wrapper {
+    overflow: visible !important;
+    padding: 2px; /* Add buffer around the stack */
+    box-sizing: border-box;
+}
+
+/* Border around send_textarea */
+#send_textarea {
+    border: 1px solid rgba(128, 128, 128, 0.5) !important; /* Visible gray border */
+    border-radius: 4px;
+    transition: border-color 0.3s;
+    box-sizing: border-box; 
+    margin-top: 6px !important; /* Separation */
+}
+
+#send_textarea:focus {
+    border-color: var(--smart-theme-color, #4CAF50) !important;
+    outline: none;
+}

@@ -1,0 +1,16 @@
+<!-- Template for Guide Prompt Overrides section -->
+<div class="guide-prompt-overrides-section">
+    <h4>Guide Prompt Overrides</h4>
+    <small class="setting_item_description">Customize the instructions sent to the AI for specific guides. Use `&#123;&#123;input&#125;&#125;` where you want the original user text to be inserted (if applicable). Use the 'Default' button to restore the original prompt. Check 'Raw' to send the prompt directly as an STScript command instead of injecting it (advanced use).</small>
+    
+    <div class="setting_item" style="margin-top: 15px;">
+        <label for="gg_impersonateTemplate" style="margin-bottom: 5px; display: block;">Default Impersonate Template:</label>
+        <select id="gg_impersonateTemplate" name="impersonateTemplate" class="gg-setting-input text_pole select_compact">
+            <!-- Options populated by JS from impersonateTemplates.json -->
+        </select>
+        <small class="setting_item_description">
+            Select the base template for impersonation. This template will be loaded into the Impersonate Prompt below if it's empty, or when you click 'Default'.
+        </small>
+    </div>
+</div>
+<hr>

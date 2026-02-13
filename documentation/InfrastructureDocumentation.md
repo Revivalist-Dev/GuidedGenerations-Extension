@@ -1,59 +1,104 @@
-# GuidedGenerations-Extension Infrastructure & Source Truth
+# Infrastructure Documentation
 
-## 1. Introduction
-This document combines the core architectural principles ("Source Truth") and the detailed UI infrastructure of the `GuidedGenerations-Extension` for SillyTavern. It serves as the primary technical reference for the extension's design, operational environment, and implementation details.
+## Centralized Module Management
 
-## 2. Source Truth (Core Principles)
+This project utilizes a centralized module management system to handle imports and dependencies across various JavaScript files. The core of this system is `scripts/utils/moduleManager.js`. This approach helps in:
 
-### 2.1 Operational Environment
-- **SillyTavern Integration**: This is a third-party extension for SillyTavern. It relies on SillyTavern's core APIs and DOM structure.
-- **Server Isolation**: The SillyTavern server runs as a separate process (often on a different machine) and cannot be started or stopped by the extension's client-side code.
-- **Legacy Emulation**: A primary goal is to replicate and enhance the functionality of the "Guided Generations V8" Quick Reply (QR) set within a formal extension framework.
+*   **Reducing Redundancy**: Avoiding repetitive import statements in multiple files.
+*   **Simplifying Updates**: Changes to a module's location or name can be updated in one central place.
+*   **Enhancing Readability**: Providing a clear overview of the project's dependencies.
 
-### 2.2 Development Standards
-- **Centralized Module Hub**: **CRITICAL**. All imports and exports must flow through [`moduleManager.js`](../scripts/utils/moduleManager.js).
-    - Never use complex relative paths like `../../../../extensions.js`.
-    - Use the `safeImport` utility for dynamic/asynchronous loading to prevent circular dependencies.
-    - This provides a single source of truth for all module resolutions.
-- **Debug Logging System**: Use the conditional debug logging system (imported from `moduleManager.js` or `logger.js`).
-    - Use `debugLog`, `debugWarn`, and `debugError` for extension-specific information.
-    - This allows users to toggle visibility via the `debugMode` setting, keeping the console clean during normal operation.
-- **Root-Relative Pathing**: All internal asset loading and module imports should assume the extension's root as the base to ensure consistency across different loading environments.
+### How it Works
 
-## 3. Core UI Components
+Instead of direct imports like:
 
-### 3.1 Extension Buttons (Main Interface)
-- **Location**: Integrated into the `#send_form` area of the SillyTavern interface.
-- **Management**: Handled by `updateExtensionButtons()` in [`uiManager.js`](../scripts/ui/uiManager.js).
-- **Structure**:
-    - **Primary Container**: `#gg-action-button-container`
-    - **Tools Menu**: `#gg_tools_menu` (dynamically populated)
-    - **Persistent Guides Menu**: `#pg_tools_menu` (dynamically populated)
+```javascript
+import { someFunction } from '../../path/to/someModule.js';
+```
 
-### 3.2 Rewrite Infrastructure
-- **Context Menu**: Triggered by text selection within `.mes_text` elements. Managed via `processSelection()` and `createGGREwriteMenu()`.
-- **Custom Rewrite Popup**: 
-    - **HTML**: Loaded from [`customRewritePopup.html`](../html/customRewritePopup.html).
-    - **CSS**: Loaded from [`customRewrite.css`](../style/customRewrite.css).
-    - **Positioning**: Dynamically calculated by `adjustPopupPosition()` to maintain a 20px offset from the chat boundary.
+Modules are imported from `moduleManager.js`:
 
-### 3.3 Target Tracking
-- **Target Button**: Added to individual message buttons (`.mes_buttons`). Allows setting a message as the focus for guided generation.
+```javascript
+import { someFunction } from './utils/moduleManager.js';
+```
 
-## 4. Architectural Summary
+The `moduleManager.js` file then handles the actual import of `someFunction` from its real location. This allows for easier refactoring and a more organized codebase.
 
-The extension follows a modular, event-driven architecture designed to minimize coupling with SillyTavern's core while maintaining deep integration.
+### Example
 
-| Component | Responsibility | Primary File |
-|-----------|----------------|--------------|
-| **Entry Point** | Initial setup and context management | `index.js` |
-| **Module Hub** | Import/Export management & Lazy loading | `moduleManager.js` |
-| **UI Orchestrator** | DOM manipulation and event routing | `uiManager.js` |
-| **Settings** | Configuration state and persistence | `settingsManager.js` |
-| **Logger** | Conditional debug output | `logger.js` |
+To import `extension_settings`, `extensionName`, and `debugLog`:
 
-## 5. Adaptation Guidelines (For Other Environments)
-To adapt this infrastructure for a different LLM interface:
-1. **Remap DOM Targets**: Identify equivalents for `#chat`, `#send_form`, and `.mes_text`.
-2. **Re-implement API Hooks**: Replace SillyTavern's `getContext`/`setContext` with the target's state management.
-3. **Maintain the Module Hub**: Preserve the `safeImport` pattern to manage the complex dependency graph of the extension's specialized guides and tools.
+Previously (Direct Imports):
+```javascript
+import { extension_settings } from '/scripts/extensions.js';
+import { extensionName } from './utils/constants.js';
+import { debugLog } from './utils/logger.js';
+```
+
+Now (Centralized via moduleManager.js):
+```javascript
+import { extension_settings, extensionName, debugLog } from './utils/moduleManager.js';
+```
+
+This documentation should be kept up-to-date with any significant architectural changes, especially regarding module imports and exports.
+
+## Asset Loading in Extensions
+
+When loading assets (like JSON files, images, etc.) within a SillyTavern extension, it is crucial to use the correct pathing for `fetch` requests. The base path for extension assets, as served by the SillyTavern server, is generally:
+
+```
+/scripts/extensions/third-party/<extension-name>/
+```
+
+Where `<extension-name>` is the name of your extension's folder (e.g., `GuidedGenerations-Extension`).
+
+### Example: Loading `impersonateTemplates.json`
+
+To load a file like `impersonateTemplates.json` located within your extension at `scripts/templates/impersonateTemplates.json`, the correct `fetch` call would be:
+
+```javascript
+const extensionName = "GuidedGenerations-Extension"; // Or dynamically retrieved
+const response = await fetch(`/scripts/extensions/third-party/${extensionName}/scripts/templates/impersonateTemplates.json`);
+if (response.ok) {
+    const data = await response.json();
+    // Process data
+}
+```
+
+Attempting to use relative paths or incorrect absolute paths (e.g., `/extensions/<extension-name>/...`) will result in `404 Not Found` errors. Always ensure the full, correct path including `/scripts/extensions/third-party/` is used.
+
+## Template Loading and URL Paths
+
+When working with HTML templates or static assets within the extension, strict adherence to URL path formation is required to ensure compatibility with the host application's routing.
+
+### `renderExtensionTemplateAsync`
+
+The utility function `renderExtensionTemplateAsync` (and its synchronous counterpart) automatically prefixes paths. 
+
+**Correct Usage:**
+When calling `renderExtensionTemplateAsync`, provide the relative path from `scripts/extensions/<extensionName>/`.
+
+```javascript
+// Correct: The system expands this to `scripts/extensions/${extensionName}/${templateId}.html`
+renderExtensionTemplateAsync(extensionName, 'settings-main'); 
+```
+
+**Incorrect Usage:**
+Do not manually include the `scripts/extensions/...` prefix when using these helper functions.
+
+```javascript
+// Incorrect: This will result in a double path and 404 error
+renderExtensionTemplateAsync(`scripts/extensions/${extensionName}`, 'settings-main');
+```
+
+### Direct `fetch` Calls
+
+When making direct `fetch` calls for JSON or other assets, you **MUST** provide the full server-relative path.
+
+**Correct Usage:**
+```javascript
+fetch(`/scripts/extensions/third-party/${extensionName}/path/to/file.json`)
+```
+
+**Incorrect Usage:**
+Using relative paths (e.g., `./file.json`) or omitting the full extension path will fail because the execution context (the browser page) is at the root `http://localhost:8000/`.

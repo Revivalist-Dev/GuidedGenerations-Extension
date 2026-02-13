@@ -1,5 +1,5 @@
 // scripts/inputRecovery.js
-import { getPreviousImpersonateInput, debugLog } from './utils/moduleManager.js'; // Import from central hub
+import { popPreviousImpersonateInput, debugLog } from './utils/moduleManager.js'; // Import from central hub
 
 const recoverInput = () => {
 	debugLog('[InputRecovery] Button clicked');
@@ -11,7 +11,12 @@ const recoverInput = () => {
 	}
 
 	try {
-		const previousInput = getPreviousImpersonateInput();
+		const previousInput = popPreviousImpersonateInput();
+		if (!previousInput) {
+			debugLog('[InputRecovery] No more input history to recover.');
+			return;
+		}
+		
 		debugLog(`[InputRecovery] Recovering input: "${previousInput}"`);
 		textarea.value = previousInput;
 		// Dispatch event for UI updates

@@ -20,15 +20,5 @@ References/
 
 # Wiki folder (separate repository)
 Wiki/
-
-# Release notes file
-RELEASE_NOTES.md
-# Ignore windsufr rules file
-.windsurfrules
-documentation/Codebase_Rework_Document.md
-documentation/cursorrules.mdc
-documentation/Prompt.md
-documentation/SourceTruth.md
-documentation/cursorrules.mdc
-documentation/TODO.md
-documentation/UI_Infrastructure_Document.md
+GuidedGenerations-Extension.code-workspace
+project-secondary-483320-182433193308.json

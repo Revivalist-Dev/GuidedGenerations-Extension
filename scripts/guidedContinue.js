@@ -1,7 +1,5 @@
-import { extension_settings, getContext, setPreviousImpersonateInput, getPreviousImpersonateInput, chat, eventSource, event_types, saveChatConditional, addOneMessage, debugLog, truncateChatForContext } from './utils/moduleManager.js'; // Import from central hub
+import { extension_settings, extensionName, getContext, setPreviousImpersonateInput, getPreviousImpersonateInput, chat, eventSource, event_types, saveChatConditional, addOneMessage, debugLog, truncateChatForContext } from './utils/moduleManager.js'; // Import from central hub
 import { redisplayChat } from '/script.js';
-
-const extensionName = "GuidedGenerations-Extension";
 
 // --- State variables for tracking guided continue operations ---
 let isGuidedContinueInProgress = false;
@@ -105,17 +103,20 @@ const guidedContinue = async () => {
         try {
             isGuidedContinueInProgress = true; 
             await context.executeSlashCommandsWithOptions(stscriptCommand);
+            
+            // RESTORE CHAT IMMEDIATELY after generation script finishes
+            restore();
         } catch (error) {
             console.error(`[${extensionName}][Continue] Error executing Guided Continue stscript: ${error}`);
             isGuidedContinueInProgress = false; 
             indexOfMessageToModify = -1;
             textOfMessageBeforeContinue = '';
         } finally {
-            // Restore chat
+            // Restore chat (safe guard)
             restore();
             
             if (typeof redisplayChat === 'function') {
-                await redisplayChat();
+                await redisplayChat(chat, indexOfMessageToModify);
             }
 
             const restoredInput = getPreviousImpersonateInput();

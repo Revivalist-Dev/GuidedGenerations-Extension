@@ -1,0 +1,122 @@
+/* Right-side action buttons and general button styles */
+
+/* .gg-button class might be deprecated if .gg-action-button is used exclusively */
+/* Keep for potential backward compatibility or other uses */
+.gg-button {
+    font-size: 1.1em; /* Adjust size as needed */
+    padding: 0 5px;   /* Add some horizontal padding */
+    cursor: pointer;
+    display: flex;    /* Align icon vertically */
+    align-items: center;
+    height: 100%;     /* Match height of parent */
+    margin: 0 2px;  /* Add small margin between buttons */
+}
+
+/* General Styles for Guided Generations Buttons - Keep if needed elsewhere */
+.gg-icon-spacing {
+    margin-right: 5px; /* Add some space between icon and text */
+}
+
+/* Style for the container holding the Guided Generations action buttons (now below input area) */
+.gg-action-buttons-container {
+    display: flex; /* Use flex layout */
+    gap: 5px; /* Space between buttons */
+    padding: 5px; /* Add some padding */
+    width: 100%;
+    flex-wrap: nowrap; /* Prevent wrapping */
+}
+
+/* Container for menu buttons (left side) */
+.gg-menu-buttons-container {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    order: 0; /* Place before QR container */
+    flex-shrink: 0; /* Prevent menu buttons from shrinking */
+    flex-grow: 0; /* Prevent menu buttons from growing */
+}
+
+/* Container for regular action buttons (right side) */
+.gg-regular-buttons-container {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    order: 2; /* Place after QR container */
+    flex-shrink: 0; /* Prevent regular buttons from shrinking */
+    flex-grow: 0; /* Prevent regular buttons from growing */
+}
+
+/* Container for the QR bar integration */
+#gg-qr-container {
+    display: flex;
+    align-items: center;
+    margin-left: 10px;
+    margin-right: 10px;
+    order: 1; /* Place after menu buttons */
+    flex-grow: 1; /* Make the QR container fill available space */
+    justify-content: flex-start; /* Align QR items to the left */
+}
+
+/* QR bar styling adjustments */
+#qr--bar {
+    margin-top: 0 !important;
+}
+
+/* Common style for Action Buttons and Menu Button */
+.gg-action-button,
+.gg-menu-button {
+    padding: 5px 8px; /* Adjust padding */
+    border: 1px solid var(--SmartThemeBodyColor); /* Use theme color for border */
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1.1em; /* Slightly larger icon */
+    display: inline-flex; /* Ensure they align nicely as flex items */
+    align-items: center; /* Center icon vertically */
+    transition: background-color 0.2s, color 0.2s;
+    background-color: var(--SmartThemeBg); /* Use theme background */
+    color: var(--SmartThemeBodyColor); /* Use theme text color */
+}
+
+/* Common hover style */
+.gg-action-button:hover,
+.gg-menu-button:hover {
+    background-color: var(--SmartThemeHover); /* Use theme hover color */
+    color: var(--SmartThemeUi); /* Adjust text color on hover if needed */
+}
+
+/* Specific styles for the Menu Button */
+.gg-menu-button {
+    position: relative; /* Needed for dropdown menu positioning */
+}
+
+.gg-button {
+    padding: 8px 16px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.2s ease;
+}
+
+.gg-button-primary {
+    background-color: var(--SmartThemeUserMesBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+}
+
+.gg-button-secondary {
+    background-color: var(--SmartThemeChatTintColor);
+    color: var(--SmartThemeBodyColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.gg-button:hover {
+    opacity: 0.9;
+}
+
+.gg-button-secondary:hover {
+    background-color: var(--SmartThemeHover);
+}

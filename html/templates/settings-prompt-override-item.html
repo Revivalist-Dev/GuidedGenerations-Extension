@@ -1,0 +1,16 @@
+<!-- Template for a single Guide Prompt Override setting -->
+<div class="setting_item">
+    <label for="gg_prompt{{name}}" style="margin-left: 8px; min-width:150px; display:block;">{{label}}</label>
+    <textarea id="gg_prompt{{name}}" name="prompt{{name}}" class="gg-setting-input text_pole" rows="3" style="width:100%; margin-left:8px; min-width:200px;" placeholder="{{placeholder}}"></textarea>
+    <div style="display: flex; align-items: center; margin-top: 4px;">
+        <button type="button" class="gg-default-button" data-target="prompt{{name}}" data-default="{{default}}" style="margin-top:4px;">Default</button>
+        {{#if showRaw}}
+            <input type="checkbox" id="gg_rawPrompt{{name}}" name="rawPrompt{{name}}" class="gg-setting-input" style="margin-left:8px;">
+            <label for="gg_rawPrompt{{name}}" style="margin-left:4px;">Raw</label>
+        {{/if}}
+        {{#if showDepth}}
+            <label for="gg_depthPrompt{{name}}" style="margin-left:8px;">Depth:</label>
+            <input type="number" id="gg_depthPrompt{{name}}" name="depthPrompt{{name}}" class="gg-setting-input" min="0" style="width: 50px; margin-left:4px;">
+        {{/if}}
+    </div>
+</div>

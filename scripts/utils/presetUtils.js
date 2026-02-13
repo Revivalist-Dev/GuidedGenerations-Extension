@@ -1,9 +1,17 @@
-import { debugLog, debugWarn, extensionName, extension_settings } from '../../index.js'; // Import directly from root to avoid circularity
+import { getContext } from '/scripts/extensions.js';
+import { debugLog, debugWarn } from './logger.js';
+import { extensionName, extension_settings } from '../../index.js';
 
 // Event listener management for profile and preset switching
 let eventListenersInitialized = false;
 let profileChangePromise = null;
 let presetChangePromise = null;
+
+export function escapeCssSelector(value) {
+    if (typeof value !== 'string') return value;
+    // Escape characters that have special meaning in CSS selectors.
+    return value.replace(/([ !\"#$%&'()*+,\.\/:;<=>?@[\\]^`{|}\~])/g, '\\$&');
+}
 
 /**
  * Initialize event listeners for profile and preset changes
@@ -156,7 +164,7 @@ async function waitForProfileChangeByPolling(expectedProfile, timeoutMs = 5000, 
  */
 export function extractApiIdFromApiType(apiType) {
     try {
-        const context = SillyTavern.getContext();
+        const context = getContext();
         if (!context?.CONNECT_API_MAP) {
             debugWarn(`[${extensionName}] CONNECT_API_MAP not available for API type: ${apiType}`);
             return null;
@@ -168,19 +176,34 @@ export function extractApiIdFromApiType(apiType) {
             return null;
         }
 
-        // Extract the apiId from the API info
-        let apiId;
-        if (typeof apiInfo === 'string') {
-            apiId = apiInfo;
-        } else if (apiInfo && typeof apiInfo === 'object' && apiInfo.selected) {
+        let apiId = null; // Initialize apiId to null
+
+        debugLog(`[${extensionName}] === API ID EXTRACTION - START ===`);
+        debugLog(`[${extensionName}] Processing apiType: "${apiType}", apiInfo:`, apiInfo);
+
+        if (apiInfo && typeof apiInfo === 'object' && apiInfo.source && typeof apiInfo.source === 'string' && apiInfo.source.trim() !== '' && apiInfo.source !== apiInfo.selected) {
+            apiId = apiInfo.source;
+            debugLog(`[${extensionName}] Logic path 1: Used apiInfo.source: "${apiId}"`);
+        } else if (apiInfo && typeof apiInfo === 'object' && apiInfo.selected && typeof apiInfo.selected === 'string' && apiInfo.selected.trim() !== '') {
             apiId = apiInfo.selected;
-        } else if (apiInfo && typeof apiInfo === 'object' && apiInfo.apiId) {
+            debugLog(`[${extensionName}] Logic path 2: Used apiInfo.selected: "${apiId}"`);
+        } else if (apiInfo && typeof apiInfo === 'object' && apiInfo.apiId && typeof apiInfo.apiId === 'string' && apiInfo.apiId.trim() !== '') {
             apiId = apiInfo.apiId;
+            debugLog(`[${extensionName}] Logic path 3: Used apiInfo.apiId: "${apiId}"`);
+        } else if (typeof apiInfo === 'string' && apiInfo.trim() !== '') {
+            apiId = apiInfo;
+            debugLog(`[${extensionName}] Logic path 4: Used apiInfo as string: "${apiId}"`);
         } else {
-            debugWarn(`[${extensionName}] Could not extract apiId from API info:`, apiInfo);
+            debugWarn(`[${extensionName}] Logic path 5: Fallback - Could not extract apiId from API info:`, apiInfo);
+            // Don't return null immediately, let the final check handle it
+        }
+
+        if (apiId === null) {
+            debugWarn(`[${extensionName}] Final apiId is null after extraction attempts.`);
             return null;
         }
 
+        debugLog(`[${extensionName}] === API ID EXTRACTION - END ===`);
         debugLog(`[${extensionName}] Extracted API ID "${apiId}" from API type "${apiType}"`);
         return apiId;
     } catch (error) {
@@ -203,7 +226,7 @@ async function waitForPresetChangeByPolling(expectedPreset, apiType, timeoutMs =
     return new Promise((resolve, reject) => {
         const checkPreset = async () => {
             try {
-                const context = SillyTavern.getContext();
+                const context = getContext();
                 if (!context?.getPresetManager) {
                     reject(new Error('Preset manager not available'));
                     return;
@@ -282,7 +305,7 @@ async function waitForPresetChangeByPolling(expectedPreset, apiType, timeoutMs =
  */
 async function waitForConnectionManager(maxAttempts = 10, delayMs = 200) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const context = SillyTavern.getContext();
+        const context = getContext();
         if (context?.extensionSettings?.connectionManager) {
             debugLog(`[${extensionName}] Connection manager available on attempt ${attempt}`);
             return true;
@@ -311,7 +334,7 @@ export async function getCurrentProfile() {
             return '';
         }
 
-        const context = SillyTavern.getContext();
+        const context = getContext();
         const { selectedProfile, profiles } = context.extensionSettings.connectionManager;
         if (!selectedProfile || !profiles || !Array.isArray(profiles)) {
             debugLog(`[${extensionName}] No profile selected or profiles not available`);
@@ -324,7 +347,7 @@ export async function getCurrentProfile() {
             return '';
         }
 
-        debugLog(`[${extensionName}] Current profile: ${currentProfile.name}`);
+        debugLog(`[${extensionName}] Current profile: "${currentProfile.name}" (ID: ${currentProfile.id})`);
         return currentProfile.name;
     } catch (error) {
         debugWarn(`[${extensionName}] Error getting current profile:`, error);
@@ -344,21 +367,26 @@ export async function getProfileList() {
             return [];
         }
 
-        const context = SillyTavern.getContext();
+        const context = getContext();
         const { profiles } = context.extensionSettings.connectionManager;
         if (!profiles || !Array.isArray(profiles)) {
             debugLog(`[${extensionName}] Profiles not available`);
             return [];
         }
 
-        const profileNames = profiles.map(p => p.name);
-        debugLog(`[${extensionName}] Available profiles:`, profileNames);
+        const profileNames = profiles.map(p => {
+            const escapedName = escapeCssSelector(p.name);
+            debugLog(`[${extensionName}] Profile in list: "${escapedName}" (Original: "${p.name}", ID: ${p.id})`);
+            return escapedName;
+        });
         return profileNames;
     } catch (error) {
         debugWarn(`[${extensionName}] Error getting profile list:`, error);
         return [];
     }
 }
+
+
 
 /**
  * Switch to a specific connection profile
@@ -373,7 +401,7 @@ export async function switchToProfile(profileName) {
             return false;
         }
 
-        const context = SillyTavern.getContext();
+        const context = getContext();
         const { profiles } = context.extensionSettings.connectionManager;
         if (!profiles || !Array.isArray(profiles)) {
             debugWarn(`[${extensionName}] Profiles not available`);
@@ -389,7 +417,9 @@ export async function switchToProfile(profileName) {
 
         // Debug: Log all potential profile-related elements
         debugLog(`[${extensionName}] Searching for profiles dropdown...`);
-        const allSelects = document.querySelectorAll('select');
+        // Use a more specific, standard querySelectorAll to avoid syntax errors with invalid characters
+        // We filter manually instead of relying on complex selectors that might break
+        const allSelects = document.getElementsByTagName('select');
         const profileRelatedSelects = Array.from(allSelects).filter(select => {
             const id = select.id || '';
             const name = select.name || '';
@@ -405,17 +435,26 @@ export async function switchToProfile(profileName) {
                              document.querySelector('#profiles') ||
                              document.querySelector('select[name="profiles"]') ||
                              document.querySelector('.profiles-select') ||
-                             document.querySelector('[data-profile-selector]') ||
-                             document.querySelector('select[id*="profile"]') ||
-                             document.querySelector('select[name*="profile"]') ||
-                             document.querySelector('select[class*="profile"]');
+                             document.querySelector('[data-profile-selector]');
+
+        if (!profilesDropdown) {
+            // Use a more specific, standard querySelectorAll to avoid syntax errors with invalid characters
+            // We filter manually instead of relying on complex selectors that might break
+            const allSelects = document.getElementsByTagName('select');
+            profilesDropdown = Array.from(allSelects).find(select => {
+                const id = select.id || '';
+                const name = select.name || '';
+                const className = select.className || '';
+                return id.includes('profile') || name.includes('profile') || className.includes('profile');
+            });
+        }
 
         if (!profilesDropdown) {
             // Try to find by looking at the connection manager UI
             debugLog(`[${extensionName}] Trying to find profiles dropdown in connection manager UI...`);
             
             // Look for elements that might be the profiles dropdown
-            const possibleDropdowns = document.querySelectorAll('select');
+            const possibleDropdowns = document.getElementsByTagName('select');
             for (const dropdown of possibleDropdowns) {
                 const options = Array.from(dropdown.options);
                 const hasMatchingProfiles = options.some(option => 
@@ -439,7 +478,7 @@ export async function switchToProfile(profileName) {
         if (!profilesDropdown) {
             debugWarn(`[${extensionName}] Profiles dropdown not found with any selector`);
             debugWarn(`[${extensionName}] Available select elements:`, 
-                Array.from(document.querySelectorAll('select')).map(s => ({ id: s.id, name: s.name, className: s.className })));
+                Array.from(document.getElementsByTagName('select')).map(s => ({ id: s.id, name: s.name, className: s.className })));
             return false;
         }
 
@@ -460,7 +499,7 @@ export async function switchToProfile(profileName) {
             return false;
         }
 
-        // Switch to the profile
+        debugLog(`[${extensionName}] Attempting to switch profilesDropdown selectedIndex to: ${profileIndex} (targetProfile.id: "${targetProfile.id}")`);
         profilesDropdown.selectedIndex = profileIndex;
         profilesDropdown.dispatchEvent(new Event('change'));
 
@@ -485,7 +524,7 @@ export async function switchToPreset(presetValue, apiType) {
             return false;
         }
 
-        const context = SillyTavern.getContext();
+        const context = getContext();
         if (!context || !context.CONNECT_API_MAP) {
             debugWarn(`[${extensionName}] Context or CONNECT_API_MAP not available`);
             return false;
@@ -497,37 +536,32 @@ export async function switchToPreset(presetValue, apiType) {
             return false;
         }
 
-        // Extract the apiId from the API info
-        debugLog(`[${extensionName}] === API ID EXTRACTION DEBUG ===`);
-        debugLog(`[${extensionName}] Raw apiInfo value:`, apiInfo);
-        debugLog(`[${extensionName}] ApiInfo type: ${typeof apiInfo}`);
-        debugLog(`[${extensionName}] ApiInfo is object: ${apiInfo && typeof apiInfo === 'object'}`);
-        
-        let apiId;
-        if (typeof apiInfo === 'string') {
-            apiId = apiInfo;
-            debugLog(`[${extensionName}] ApiInfo is string, using directly: "${apiId}"`);
-        } else if (apiInfo && typeof apiInfo === 'object' && apiInfo.selected) {
-            apiId = apiInfo.selected;
-            debugLog(`[${extensionName}] ApiInfo is object with selected property: "${apiId}"`);
-        } else if (apiInfo && typeof apiInfo === 'object' && apiInfo.apiId) {
-            apiId = apiInfo.apiId;
-            debugLog(`[${extensionName}] ApiInfo is object with apiId property: "${apiId}"`);
-        } else {
-            debugLog(`[${extensionName}] ApiInfo object keys: ${apiInfo && typeof apiInfo === 'object' ? Object.keys(apiInfo).join(', ') : 'N/A'}`);
-            debugWarn(`[${extensionName}] Could not extract apiId from API info:`, apiInfo);
+        // Extract the apiId using the centralized, fixed function
+        const apiId = extractApiIdFromApiType(apiType);
+
+        if (!apiId) {
+            debugWarn(`[${extensionName}] Could not extract apiId from API type: ${apiType} using the centralized function.`);
             return false;
         }
         
-        debugLog(`[${extensionName}] Final extracted apiId: "${apiId}"`);
-        debugLog(`[${extensionName}] === END API ID EXTRACTION DEBUG ===`);
+        debugLog(`[${extensionName}] Using API ID "${apiId}" extracted from centralized function for preset switch.`);
 
         debugLog(`[${extensionName}] === PRESET MANAGER RETRIEVAL DEBUG ===`);
-        debugLog(`[${extensionName}] Getting preset manager for apiId: "${apiId}"`);
-        
-        const presetManager = context.getPresetManager(apiId);
-        debugLog(`[${extensionName}] Preset manager retrieved: ${!!presetManager}`);
-        
+        debugLog(`[${extensionName}] Attempting to get preset manager for apiId: "${apiId}"`);
+
+        let currentApiId = apiId;
+        let presetManager = context.getPresetManager(currentApiId);
+
+        // Fallback logic: if preset manager is not found for specific API, try 'generic'
+        if (!presetManager && currentApiId !== 'generic') {
+            const fallbackApiId = 'generic';
+            debugWarn(`[${extensionName}] Preset manager not available for API ID: ${currentApiId}. Falling back to API ID: "${fallbackApiId}"`);
+            presetManager = context.getPresetManager(fallbackApiId);
+            currentApiId = fallbackApiId;
+        }
+
+        debugLog(`[${extensionName}] Preset manager retrieved for "${currentApiId}": ${!!presetManager}`);
+
         if (presetManager) {
             debugLog(`[${extensionName}] Preset manager type: ${typeof presetManager}`);
             debugLog(`[${extensionName}] Preset manager constructor: ${presetManager.constructor?.name || 'unknown'}`);
@@ -535,9 +569,9 @@ export async function switchToPreset(presetValue, apiType) {
             debugLog(`[${extensionName}] Preset manager methods: ${Object.getOwnPropertyNames(Object.getPrototypeOf(presetManager)).filter(name => typeof presetManager[name] === 'function').join(', ')}`);
             debugLog(`[${extensionName}] Preset manager own properties: ${Object.keys(presetManager).join(', ')}`);
         }
-        
+
         if (!presetManager || typeof presetManager.selectPreset !== 'function') {
-            debugWarn(`[${extensionName}] Preset manager not available for API ID: ${apiId}`);
+            debugWarn(`[${extensionName}] Final attempt: Preset manager not available for API ID: ${currentApiId}`);
             debugLog(`[${extensionName}] === END PRESET MANAGER RETRIEVAL DEBUG ===`);
             return false;
         }
@@ -546,7 +580,7 @@ export async function switchToPreset(presetValue, apiType) {
 
         // Try to select the preset
         debugLog(`[${extensionName}] === PRESET SELECTION DEBUG ===`);
-        debugLog(`[${extensionName}] Attempting to select preset: "${presetValue}"`);
+        debugLog(`[${extensionName}] Attempting to select preset: "${presetValue}" for API type: "${apiType}"`);
         debugLog(`[${extensionName}] Using preset manager for apiId: "${apiId}"`);
         debugLog(`[${extensionName}] Preset manager selectPreset method: ${typeof presetManager.selectPreset}`);
         
@@ -557,6 +591,19 @@ export async function switchToPreset(presetValue, apiType) {
         debugLog(`[${extensionName}] === END PRESET SELECTION DEBUG ===`);
         
         debugLog(`[${extensionName}] Switched to preset: ${presetValue} for API type: ${apiType} (${apiId})`);
+        
+        // Wait for jQuery AJAX completion if selectPreset triggers one
+        if (typeof jQuery !== 'undefined' && jQuery.active > 0) {
+             debugLog(`[${extensionName}] Waiting for active jQuery requests...`);
+             await new Promise(resolve => {
+                 const check = () => {
+                     if (jQuery.active === 0) resolve();
+                     else setTimeout(check, 50);
+                 };
+                 check();
+             });
+        }
+
         return result !== false;
     } catch (error) {
         debugWarn(`[${extensionName}] Error switching to preset:`, error);
@@ -577,7 +624,7 @@ export async function getProfileApiType(profileName) {
             return '';
         }
 
-        const context = SillyTavern.getContext();
+        const context = getContext();
         const { profiles } = context.extensionSettings.connectionManager;
         if (!profiles || !Array.isArray(profiles)) {
             debugWarn(`[${extensionName}] Profiles not available`);
@@ -591,7 +638,7 @@ export async function getProfileApiType(profileName) {
         }
 
         const apiType = profile.api || '';
-        debugLog(`[${extensionName}] Profile ${profileName} API type: ${apiType}`);
+        debugLog(`[${extensionName}] Profile ${profileName} API type: "${apiType}"`);
         return apiType;
     } catch (error) {
         debugWarn(`[${extensionName}] Error getting profile API type:`, error);
@@ -606,7 +653,7 @@ export async function getProfileApiType(profileName) {
  */
 export async function getPresetsForApiType(apiType) {
     try {
-        const context = SillyTavern.getContext();
+        const context = getContext();
         if (!context || !context.CONNECT_API_MAP) {
             debugWarn(`[${extensionName}] Context or CONNECT_API_MAP not available`);
             return [];
@@ -638,6 +685,10 @@ export async function getPresetsForApiType(apiType) {
         }
 
         const presetList = presetManager.getPresetList();
+        presetList.forEach(preset => {
+            const name = typeof preset === 'object' ? (preset.name || preset.id || preset.title || preset.label) : preset;
+            debugLog(`[${extensionName}] Preset in list for ${apiType} (${apiId}): "${name}"`);
+        });
         debugLog(`[${extensionName}] Presets for ${apiType} (${apiId}):`, presetList);
         return Array.isArray(presetList) ? presetList : [];
     } catch (error) {
@@ -652,7 +703,7 @@ export async function getPresetsForApiType(apiType) {
  */
 export function getConnectApiMap() {
     try {
-        const context = SillyTavern.getContext();
+        const context = getContext();
         return context?.CONNECT_API_MAP || {};
                 } catch (error) {
         debugWarn(`[${extensionName}] Error getting CONNECT_API_MAP:`, error);
@@ -830,7 +881,7 @@ export async function handleSwitching(profileValue = null, presetValue = null, o
                 await new Promise(resolve => setTimeout(resolve, presetTimeout));
                 
                 debugLog(`[${extensionName}] Capturing current preset after profile switch...`);
-                const context = SillyTavern.getContext();
+                const context = getContext();
                 debugLog(`[${extensionName}] Context available: ${!!context}, getPresetManager available: ${!!context?.getPresetManager}`);
                 
                 if (context?.getPresetManager) {
@@ -873,7 +924,7 @@ export async function handleSwitching(profileValue = null, presetValue = null, o
                                     currentPreset = selected ? selected.toString() : '';
                                 }
                             } else {
-                                // All other API IDs (openai, novel, kobold, etc.) return primitive values (string/number)
+                                // All other API IDs (openai, kobold, etc.) return primitive values (string/number)
                                 if (selected !== null && selected !== undefined) {
                                     currentPreset = selected.toString();
                                     debugLog(`[${extensionName}] Current preset after profile switch: "${currentPreset}" (${apiId} primitive) from default manager`);
@@ -907,7 +958,7 @@ export async function handleSwitching(profileValue = null, presetValue = null, o
                 // If no profile change but we're switching presets, capture current preset now
                 if (targetPreset) {
                     debugLog(`[${extensionName}] No profile change, capturing current preset before preset switch...`);
-                    const context = SillyTavern.getContext();
+                    const context = getContext();
                     if (context?.getPresetManager) {
                         try {
                             // Use the default preset manager (current active API type)
@@ -948,7 +999,7 @@ export async function handleSwitching(profileValue = null, presetValue = null, o
                                         currentPreset = selected ? selected.toString() : '';
                                     }
                                 } else {
-                                    // All other API IDs (openai, novel, kobold, etc.) return primitive values (string/number)
+                                    // All other API IDs (openai, kobold, etc.) return primitive values (string/number)
                                     if (selected !== null && selected !== undefined) {
                                         currentPreset = selected.toString();
                                         debugLog(`[${extensionName}] Current preset before preset switch: "${currentPreset}" (${apiId} primitive) from default manager`);

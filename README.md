@@ -80,7 +80,7 @@ The Surgical Rewrite feature has been modernized and enhanced:
 ## Installation
 
 1. **Install the Extension:**
-   - In the Extensionmanager click on Install Extension and enter https://github.com/Samueras/GuidedGenerations-Extension/ as the GITHUB
+   - In the Extensionmanager click on Install Extension and enter https://github.com/Revivalist-Dev/GuidedGenerations-Extension as the GITHUB
 
 
 ---

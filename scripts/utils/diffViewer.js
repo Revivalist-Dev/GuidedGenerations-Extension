@@ -46,21 +46,4 @@ export function diffWords(oldText, newText) {
     return merged;
 }
 
-export function renderDiffToHtml(diff) {
-    const fragment = document.createDocumentFragment();
-    diff.forEach(part => {
-        const span = document.createElement('span');
-        if (part.added) {
-            span.className = 'gg-diff-added';
-        } else if (part.removed) {
-            span.className = 'gg-diff-removed';
-        } else {
-            span.className = 'gg-diff-unchanged';
-        }
-        span.textContent = part.value;
-        fragment.appendChild(span);
-    });
-    return fragment;
-}
-
 

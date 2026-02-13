@@ -1,0 +1,38 @@
+export const defaultSettings = {
+    showImpersonate: true,
+    impersonateTemplate: '1st',
+    showGuidedContinue: false,
+    showGuidedResponse: true,
+    showGuidedSwipe: true,
+    showSimpleSendButton: false,
+    showRecoverInputButton: false,
+    showCorrectionsButton: false,
+    showUndoButton: false,
+    showRevertButton: false,
+    integrateQrBar: true,
+    debugMode: false,
+    injectionEndRole: 'system',
+    contextMessageCount: 0,
+    profileRewrite: '',
+    presetRewrite: '',
+    promptRewrite: '',
+    promptShorten: '',
+    promptExpand: '',
+    promptInstruct: '',
+    highlightDuration: 3000,
+    showDiffView: true,
+    rewriteContextCount: 5,
+    rewriteCandidateCount: 4,
+    rewriteTemperature: 1.0,
+    maxRewriteTokens: 500,
+
+    // Prompt Overrides
+    promptCorrections: '',
+    promptGuidedResponse: '',
+    promptGuidedSwipe: '',
+    promptGuidedContinue: '',
+    promptInputAssistant: '',
+    promptImpersonate: '',
+
+    LastPatchNoteVersion: '1.4.3'
+};

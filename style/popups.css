@@ -1,0 +1,293 @@
+/* Diff Viewer Styles */
+.gg-diff-added {
+    background-color: rgba(0, 255, 0, 0.2);
+    text-decoration: underline;
+    color: #4caf50;
+}
+.gg-diff-removed {
+    background-color: rgba(255, 0, 0, 0.2);
+    text-decoration: line-through;
+    color: #f44336;
+}
+.gg-diff-unchanged {
+    color: inherit;
+}
+.gg-diff-container {
+    padding: 15px;
+    background: var(--black30, #111);
+    border-radius: 5px;
+    border: 1px solid var(--grey30, #444);
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: var(--font-family);
+    line-height: 1.5;
+}
+
+/* Popup Styles */
+#gg-diff-popup.gg-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex; /* Overriding common .gg-popup { display: none } */
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+}
+#gg-diff-popup .gg-popup-content {
+    background: var(--mainColor, #222);
+    border: 1px solid var(--grey30, #444);
+    border-radius: 10px;
+    width: 80%;
+    max-width: 800px;
+    max-height: 90vh; /* Ensure popup fits on screen */
+    overflow-y: auto; /* Enable vertical scrolling */
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    /* Override absolute positioning from existing .gg-popup-content if needed */
+    position: relative !important;
+    top: unset !important;
+    left: unset !important;
+    transform: unset !important;
+}
+#gg-diff-popup .gg-popup-header {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--grey30, #444);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+#gg-diff-popup .gg-popup-header h3 {
+    margin: 0;
+}
+#gg-diff-popup .gg-popup-close {
+    cursor: pointer;
+    font-size: 24px;
+}
+#gg-diff-popup .gg-popup-body {
+    padding: 20px;
+}
+#gg-diff-popup .gg-popup-footer {
+    padding: 10px 20px;
+    border-top: 1px solid var(--grey30, #444);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.gg-confirm-btn {
+    background-color: var(--green, #28a745) !important;
+    color: white !important;
+}
+
+/* Tab Styles */
+.gg-diff-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--grey30, #444);
+    padding-bottom: 5px;
+}
+.gg-diff-tab {
+    padding: 5px 15px;
+    background: transparent;
+    border: none;
+    color: var(--grey70, #aaa);
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 4px 4px 0 0;
+}
+.gg-diff-tab.active {
+    background: var(--grey30, #444);
+    color: var(--white, #fff);
+}
+.gg-tab-content {
+    display: none;
+}
+.gg-tab-content.active {
+    display: block;
+}
+
+/* Editor Styles */
+.gg-diff-editor {
+    width: 100%;
+    height: 300px;
+    background: var(--black30, #111);
+    color: var(--white, #fff);
+    border: 1px solid var(--grey30, #444);
+    border-radius: 5px;
+    padding: 15px;
+    font-family: var(--font-family);
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+/* Analysis/Chain of Thought Styles */
+.gg-analysis-container {
+    margin-bottom: 10px;
+    border: 1px solid var(--smart-theme-border);
+    border-radius: 5px;
+    background: var(--smart-theme-bg);
+}
+.gg-analysis-details {
+    padding: 5px;
+}
+.gg-analysis-details summary {
+    cursor: pointer;
+    font-weight: bold;
+    padding: 5px;
+}
+.gg-analysis-content {
+    padding: 10px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9em;
+    border-top: 1px solid var(--smart-theme-border);
+    margin-top: 5px;
+}
+
+/* Spinner */
+.gg-spinner {
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 4px solid var(--smart-theme-body-text, #fff);
+    width: 40px;
+    height: 40px;
+    margin: 20px auto;
+    animation: gg-spin 1s linear infinite;
+}
+
+@keyframes gg-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Candidate Navigation */
+.gg-candidate-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 15px;
+    padding: 5px;
+    background: var(--black30, #111);
+    border: 1px solid var(--grey30, #444);
+    border-radius: 5px;
+}
+#gg-candidate-counter {
+    font-weight: bold;
+    min-width: 100px;
+    text-align: center;
+}
+
+/* History Popup Styles */
+#gg-history-popup.gg-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+}
+
+#gg-history-popup .gg-popup-content {
+    background: var(--mainColor, #222);
+    border: 1px solid var(--grey30, #444);
+    border-radius: 10px;
+    width: 70%;
+    max-width: 600px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    position: relative !important;
+    top: unset !important;
+    left: unset !important;
+    transform: unset !important;
+}
+
+#gg-history-popup .gg-popup-header {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--grey30, #444);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+#gg-history-popup .gg-popup-header h3 {
+    margin: 0;
+}
+#gg-history-popup .gg-popup-close {
+    cursor: pointer;
+    font-size: 24px;
+}
+
+.gg-history-list {
+    padding: 10px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.gg-history-item {
+    background: var(--black30, #111);
+    border: 1px solid var(--grey30, #444);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    padding: 10px;
+}
+
+.gg-history-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: var(--grey70, #aaa);
+}
+
+.gg-history-content {
+    white-space: pre-wrap;
+    font-family: var(--font-family);
+    font-size: 0.9em;
+    max-height: 100px;
+    overflow-y: hidden;
+    position: relative;
+    border-top: 1px solid var(--grey30, #444);
+    margin-top: 5px;
+    padding-top: 5px;
+}
+.gg-history-content::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    background: linear-gradient(to bottom, transparent, var(--black30, #111));
+}
+
+.gg-history-restore-btn {
+    padding: 5px 10px;
+    background-color: var(--smart-theme-color, #007bff);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+.gg-history-restore-btn:hover {
+    filter: brightness(1.1);
+}
+
+.gg-history-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--grey70, #aaa);
+}

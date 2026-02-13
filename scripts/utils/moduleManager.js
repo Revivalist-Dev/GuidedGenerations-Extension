@@ -3,19 +3,23 @@
  * Combines dynamic import handling and centralized export facades to prevent circular dependencies.
  */
 
-import { extensionName, defaultSettings } from './constants.js';
+
 import { debugLog, debugWarn, debugError, getDebugMessagesAsText, clearDebugMessages } from './logger.js';
+import { defaultSettings } from './defaultSettings.js';
 import { getContext } from '/scripts/extensions.js';
 import { chat, saveChatConditional, addOneMessage, updateMessageBlock, redisplayChat } from '/script.js';
 import { eventSource, event_types } from '/scripts/events.js';
-import { extension_settings } from '../../index.js';
+import { extension_settings, extensionName, getImpersonateTemplate, getGuidedGenerationTargetMessageId } from '../../index.js';
 import { getSettings, updateSetting } from './settingsManager.js';
-import { loadSettingsPanel, loadSettings, updateSettingsUI, addSettingsEventListeners } from '../settingsPanel.js';
+import { loadSettingsPanel, updateSettingsUI, addSettingsEventListeners } from '../settingsPanel.js';
 import { 
-    getPreviousImpersonateInput, 
-    setPreviousImpersonateInput, 
-    getLastImpersonateResult, 
-    setLastImpersonateResult 
+    getPreviousImpersonateInput,
+    setPreviousImpersonateInput,
+    popPreviousImpersonateInput,
+    getLastImpersonateResult,
+    setLastImpersonateResult,
+    getIsGuideGenerationInProgress,
+    setIsGuideGenerationInProgress
 } from '../../index.js';
 import * as presetUtils from './presetUtils.js';
 
@@ -79,43 +83,32 @@ export {
     event_types,
     // Re-export from settingsPanel.js
     loadSettingsPanel,
-    loadSettings,
     updateSettingsUI,
     addSettingsEventListeners,
     // Re-export state from index.js
     getPreviousImpersonateInput,
     setPreviousImpersonateInput,
+    popPreviousImpersonateInput,
     getLastImpersonateResult,
-    setLastImpersonateResult
+    setLastImpersonateResult,
+    getIsGuideGenerationInProgress,
+    setIsGuideGenerationInProgress,
+    getImpersonateTemplate,
+    getGuidedGenerationTargetMessageId
 };
 
 // --- Guide & Logic Facades ---
 // These functions lazily load the implementation to avoid load-time circular dependencies.
 
-export const clothesGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/clothesGuide.js', 'ClothesGuide'))?.default(isAuto);
-export const stateGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/stateGuide.js', 'StateGuide'))?.default(isAuto);
-export const thinkingGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/thinkingGuide.js', 'ThinkingGuide'))?.default(isAuto);
-export const situationalGuide = async () => (await safeImport('./scripts/persistentGuides/situationalGuide.js', 'SituationalGuide'))?.default();
-export const rulesGuide = async () => (await safeImport('./scripts/persistentGuides/rulesGuide.js', 'RulesGuide'))?.default();
-export const customGuide = async () => (await safeImport('./scripts/persistentGuides/customGuide.js', 'CustomGuide'))?.default();
-export const customAutoGuide = async (isAuto) => (await safeImport('./scripts/persistentGuides/customAutoGuide.js', 'CustomAutoGuide'))?.default(isAuto);
-export const funGuide = async () => (await safeImport('./scripts/persistentGuides/funGuide.js', 'FunGuide'))?.default();
-
-export const executeTracker = async (trackerId) => (await safeImport('./scripts/persistentGuides/trackerLogic.js', 'TrackerLogic'))?.executeTracker(trackerId);
-export const checkAndExecuteTracker = async () => (await safeImport('./scripts/persistentGuides/trackerLogic.js', 'TrackerLogic'))?.checkAndExecuteTracker();
-export const createTrackerNote = async () => (await safeImport('./scripts/persistentGuides/trackerLogic.js', 'TrackerLogic'))?.createTrackerNote();
-
-export const flushGuides = async () => (await safeImport('./scripts/persistentGuides/flushGuides.js', 'FlushGuides'))?.default();
-export const showGuides = async () => (await safeImport('./scripts/persistentGuides/showGuides.js', 'ShowGuides'))?.default();
-export const editGuides = async () => (await safeImport('./scripts/persistentGuides/editGuides.js', 'EditGuides'))?.default();
+// All persistent guides have been archived for re-implementation.
 
 
 // --- Tool Facades ---
 
-export const clearInput = async () => (await safeImport('./scripts/tools/clearInput.js', 'ClearInput'))?.default();
-export const corrections = async () => (await safeImport('./scripts/tools/corrections.js', 'Corrections'))?.corrections();
-export const editIntros = async () => (await safeImport('./scripts/tools/editIntros.js', 'EditIntros'))?.default();
-export const spellchecker = async () => (await safeImport('./scripts/tools/spellchecker.js', 'Spellchecker'))?.spellchecker();
+export const generateNewSwipe = async () => (await safeImport('./scripts/guidedSwipe.js', 'GuidedSwipe'))?.generateNewSwipe();
+export const guidedCorrections = async () => (await safeImport('./scripts/guidedCorrections.js', 'GuidedCorrections'))?.guidedCorrections();
+
+
 
 export const handleGuidedRewrite = async (mode, input, selectionInfo) => (await safeImport('./scripts/guidedRewrite.js', 'GuidedRewrite'))?.handleGuidedRewrite(mode, input, selectionInfo);
 export const getSelectedTextInfo = async () => (await safeImport('./scripts/guidedRewrite.js', 'GuidedRewrite'))?.getSelectedTextInfo();
@@ -131,6 +124,38 @@ export const switchToProfile = presetUtils.switchToProfile;
 export const switchToPreset = presetUtils.switchToPreset;
 export const withProfile = presetUtils.withProfile;
 
+/**
+ * Returns the avatar URL for a given name, checking the main character and the user.
+ * Assumes the name is the display name, which matches the name property of the character/user object.
+ * @param {string} name - The name of the speaker.
+ * @returns {string|null} The avatar URL or null if not found.
+ */
+export function getAvatarUrlForName(name) {
+    const context = getContext();
+    if (!context) {
+        debugWarn('[Avatar] Context not available.');
+        return null;
+    }
+
+    // Check main character
+    if (context.character && context.character.name === name) {
+        debugLog(`[Avatar] Found avatar for main character: ${context.character.avatar}`);
+        // Return relative path to character's avatar
+        return context.character.avatar || null;
+    }
+
+    // Check user
+    // NOTE: context.user might not always exist or have an avatar in all ST setups, but we check anyway.
+    if (context.user && context.user.name === name) {
+        debugLog(`[Avatar] Found avatar for user: ${context.user.avatar}`);
+        // Return relative path to user's avatar
+        return context.user.avatar || null;
+    }
+
+    debugLog(`[Avatar] No avatar found for name: ${name}`);
+    return null;
+}
+
 export const isGroupChat = () => !!getContext().groupId;
 
 /**
@@ -145,16 +170,30 @@ export function truncateChatForContext(targetIndex) {
     const end = targetIndex + 1;
     const contextSlice = chat.slice(start, end);
     
-    // Modify global chat array in place
-    chat.length = 0;
-    chat.push(...contextSlice);
+    // The error "Message with id X not found" occurs because SillyTavern's UI components
+    // (like the message list) often react to array changes or look up messages by index
+    // while the truncation is active. If a tool or ST core logic tries to access 
+    // chat[originalIndex] while chat is truncated, it fails.
+    
+    // We must ensure the chat array is RESTORED before ANY UI re-display or ST core logic 
+    // that might depend on the full chat array runs.
+    
+    chat.splice(0, chat.length, ...contextSlice);
     
     debugLog(`[Context] Truncated chat for generation. Original length: ${fullBackup.length}, New length: ${chat.length}`);
     
+    let isRestored = false;
     return () => {
-        chat.length = 0;
-        chat.push(...fullBackup);
-        debugLog(`[Context] Restored chat. Length: ${chat.length}`);
+        if (isRestored) return;
+        
+        // Find if new messages were added to the end of the truncated chat
+        const newMessages = chat.slice(contextSlice.length);
+        
+        // Restore full chat plus any new messages
+        chat.splice(0, chat.length, ...fullBackup, ...newMessages);
+        
+        isRestored = true;
+        debugLog(`[Context] Restored chat. Length: ${chat.length}. Preserved ${newMessages.length} new messages.`);
     };
 }
 

@@ -1,6 +1,6 @@
 // scripts/simpleSend.js
 
-import { setPreviousImpersonateInput, debugLog } from './utils/moduleManager.js'; // Import from central hub
+import { setPreviousImpersonateInput, debugLog, getContext } from './utils/moduleManager.js'; // Import from central hub
 
 // State variable specific to simpleSend to prevent rapid clicks
 let isSending = false; 
@@ -27,12 +27,12 @@ const simpleSend = async () => {
 	// Modified Stscript: Send current input, then clear input
 	const command = `/send {{input}} | /setinput`; 
 
-		if (typeof SillyTavern !== 'undefined' && typeof SillyTavern.getContext === 'function') {
-			const context = SillyTavern.getContext();
+		if (typeof getContext === 'function') {
+			const context = getContext();
 			// Send the combined script via context and wait for it to complete
 			await context.executeSlashCommandsWithOptions(command);
 		} else {
-			console.error('[GuidedGenerations][SimpleSend] SillyTavern.getContext function not found.');
+			console.error('[GuidedGenerations][SimpleSend] getContext function not found.');
 		}
 	} catch (error) {
 		console.error("[GuidedGenerations][SimpleSend] Error:", error);

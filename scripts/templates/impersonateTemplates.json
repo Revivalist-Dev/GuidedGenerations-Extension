@@ -1,0 +1,17 @@
+[
+    {
+        "id": "1st",
+        "name": "1st Person",
+        "content": "[OOC: Character: {{char}}]\n[Instruction: Write the next message from the perspective of {{user}} in 1st person.][/OOC]"
+    },
+    {
+        "id": "2nd",
+        "name": "2nd Person",
+        "content": "[OOC: Character: {{char}}]\n[Instruction: Write the next message from the perspective of {{user}} in 2nd person.][/OOC]"
+    },
+    {
+        "id": "3rd",
+        "name": "3rd Person",
+        "content": "[OOC: Character: {{char}}]\n[Instruction: Write the next message from the perspective of {{user}} in 3rd person.][/OOC]"
+    }
+]

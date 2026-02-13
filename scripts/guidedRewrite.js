@@ -1,85 +1,15 @@
 import { getContext } from '/scripts/extensions.js';
-import { extensionName } from './utils/constants.js';
+import { extensionName } from '../index.js';
 import { debugLog, debugError, debugWarn } from './utils/logger.js';
 import { getSettings } from './utils/settingsManager.js';
 import { handleSwitching, chat, saveChatConditional, updateMessageBlock, redisplayChat } from './utils/moduleManager.js';
 import { getTokenCountAsync } from '/scripts/tokenizers.js';
 
-import { diffWords, renderDiffToHtml } from './utils/diffViewer.js';
+import { showDiffPreview, showLoading, hideLoading } from './ui/diffManager.js';
+import { rewriteHistoryManager } from './utils/rewriteHistory.js';
 
 // --- Global State ---
-let rewriteHistory = {}; // Stores history of rewrites per message for undo
 
-/**
- * Shows the diff preview popup and returns a promise that resolves to true (apply) or false (cancel)
- */
-async function showDiffPreview(oldText, newText) {
-    return new Promise(async (resolve) => {
-        let popup = document.getElementById('gg-diff-popup');
-        if (!popup) {
-            try {
-                const response = await fetch('/scripts/extensions/third-party/GuidedGenerations-Extension/html/diffPopup.html');
-                if (response.ok) {
-                    const html = await response.text();
-                    document.body.insertAdjacentHTML('beforeend', html);
-                    popup = document.getElementById('gg-diff-popup');
-                }
-            } catch (err) {
-                debugError('Failed to load diff popup HTML:', err);
-                resolve(true); // Fallback to auto-apply if popup fails to load
-                return;
-            }
-        }
-
-        if (!popup) {
-            resolve(true);
-            return;
-        }
-
-        const container = popup.querySelector('#gg-diff-container');
-        const confirmBtn = popup.querySelector('#gg-diff-confirm');
-        const cancelBtn = popup.querySelector('#gg-diff-cancel');
-        const closeBtn = popup.querySelector('.gg-popup-close');
-
-        // Generate and render diff
-        const diff = diffWords(oldText, newText);
-        container.innerHTML = '';
-        container.appendChild(renderDiffToHtml(diff));
-
-        // Bring popup to foreground and prevent scrolling interference
-        popup.style.display = 'flex';
-        document.body.classList.add('gg-popup-open');
-
-        const cleanup = (result) => {
-            popup.style.display = 'none';
-            document.body.classList.remove('gg-popup-open');
-            confirmBtn.onclick = null;
-            cancelBtn.onclick = null;
-            closeBtn.onclick = null;
-            resolve(result);
-        };
-
-        confirmBtn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            debugLog('Diff Popup: Confirm clicked');
-            cleanup(true);
-        };
-        
-        cancelBtn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            debugLog('Diff Popup: Cancel clicked');
-            cleanup(false);
-        };
-
-        closeBtn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            cleanup(false);
-        };
-    });
-}
 
 /**
  * Decoupled Rewrite Logic
@@ -96,23 +26,65 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
         case 'Rewrite': promptTemplate = settings.promptRewrite; break;
         case 'Shorten': promptTemplate = settings.promptShorten; break;
         case 'Expand': promptTemplate = settings.promptExpand; break;
-        case 'Custom': promptTemplate = settings.promptCustom; break;
+        case 'Instruct': promptTemplate = settings.promptInstruct; break;
         default: promptTemplate = settings.promptRewrite;
     }
 
-    let finalPrompt = promptTemplate.replace('{{rewrite}}', selectedText);
-    let instruction = '';
-    if (mode === 'Custom') {
-        instruction = customInput;
-        if (!instruction) {
-            const textarea = document.getElementById('send_textarea');
-            if (textarea) {
-                instruction = textarea.value;
+    // --- CONTEXT FETCHING ---
+    let contextString = '';
+    const contextCount = settings.rewriteContextCount || 0;
+    const mesId = parseInt(selectionInfo.mesId);
+
+    if (contextCount > 0 && !isNaN(mesId)) {
+        let globalChat = (typeof chat !== 'undefined') ? chat : window.chat;
+        if (!globalChat && typeof SillyTavern !== 'undefined') globalChat = SillyTavern.chat;
+
+        if (globalChat) {
+            // Include messages leading up to the current one
+            // We include the current message's text up to the selection start if possible
+            // but for simplicity we'll just take N previous messages.
+            const startIdx = Math.max(0, mesId - contextCount);
+            const contextMessages = [];
+            
+            for (let i = startIdx; i <= mesId; i++) {
+                if (globalChat[i]) {
+                    const name = globalChat[i].name || (globalChat[i].is_user ? 'User' : 'Character');
+                    let content = globalChat[i].mes;
+
+                    // If it's the current message being edited, only include text UP TO the selection start
+                    // This provides the immediate lead-in without polluting context with the text we want to change
+                    if (i === mesId) {
+                         content = fullMessage.substring(0, start);
+                         // If there is no lead-in (start of message), skip adding this empty line unless it's the only context
+                         if (!content && i !== startIdx) continue;
+                    }
+
+                    contextMessages.push(`${name}: ${content}`);
+                }
             }
+            contextString = contextMessages.join('\n\n');
         }
-        
+    }
+
+    let finalPrompt = promptTemplate.replace('{{rewrite}}', selectedText);
+    finalPrompt = finalPrompt.replace('{{context}}', contextString || 'No additional context provided.');
+    let instruction = '';
+    
+    // Prefer customInput if passed (e.g. from popup input)
+    if (customInput && customInput.trim()) {
+        instruction = customInput.trim();
+    } else {
+        // Fallback: Try to grab from main input if not provided via arguments
+        const textarea = document.getElementById('send_textarea');
+        if (textarea) {
+            instruction = textarea.value.trim();
+        }
+    }
+
+    if (mode === 'Instruct') {
         if (!instruction) {
             debugLog(`[${extensionName}] Custom rewrite aborted: No instruction provided.`);
+            toastr.warning("Please enter instructions in the main chat input or the popup before using Instruct.", "No Instructions Provided");
             return { success: false, error: "No instruction provided" };
         }
 
@@ -131,25 +103,105 @@ export async function performRewrite(mode, selectionInfo, customInput = '') {
     const { switch: switchPreset, restore } = await handleSwitching(profileValue || null, presetValue || null);
     if (profileValue || presetValue) await switchPreset();
 
+    // Prepare "Following Text" for context
+    const followingText = fullMessage.substring(end);
+    
+    // Variance feature removed. Strategies are no longer loaded.
+
     let resultText = '';
     try {
-        // 3. Generate
-        resultText = await context.generateRaw({
-            prompt: finalPrompt,
-            max_tokens: settings.maxRewriteTokens || 500,
-        });
+        // 3. Generate (N candidates)
+        const candidateCount = settings.rewriteCandidateCount || 4;
+        
+        // Random temperature offset generator
+        const baseTemp = settings.rewriteTemperature || 1.0; 
+        
+        const generatePromise = async (index) => {
+            // Temperature variation
+            const tempOffset = (index * 0.15); 
+            const dynamicTemp = Math.min(2.0, Math.max(0.1, baseTemp + tempOffset)); // Clamp 0.1 - 2.0
+            
+            // Replace placeholders
+            let currentPrompt = finalPrompt.replace('{{variance}}', ''); // Remove placeholder if it exists
+            currentPrompt = currentPrompt.replace('{{after}}', followingText || "No following text.");
 
-        if (resultText) {
-            // --- TOKEN COUNTING (OUTPUT) ---
-            const outputTokens = await getTokenCountAsync(resultText);
-            debugLog(`Output Token Count (${mode}): ${outputTokens}`);
+            const result = await context.generateRaw({
+                prompt: currentPrompt,
+                max_tokens: settings.maxRewriteTokens || 500,
+                temperature: dynamicTemp, // Pass temp override
+                top_p: 0.95, // Ensure high diversity
+                top_k: 40,
+                repetition_penalty: 1.15
+            });
 
-            // 4. Construct New Message
-            // STRICT REPLACEMENT: Slice and splice using exact indices
-            // This is 100% reliable because we got start/end from the textarea directly
-            const newMessage = fullMessage.substring(0, start) + resultText + fullMessage.substring(end);
+            return {
+                text: result
+            };
+        };
 
-            return { success: true, newMessage, resultText, originalRaw: selectedText };
+        debugLog(`[${extensionName}] Generating ${candidateCount} rewrite candidates...`);
+
+        // Run concurrently
+        let rawResults = [];
+        try {
+            rawResults = await Promise.all(Array(candidateCount).fill().map((_, i) => generatePromise(i)));
+        } catch (err) {
+            console.error(`[${extensionName}] One or more generations failed:`, err);
+            // ... (rest of error handling logic remains similar but needs to handle object return) ...
+             if (Promise.allSettled) {
+                 const settled = await Promise.allSettled(Array(candidateCount).fill().map((_, i) => generatePromise(i)));
+                 rawResults = settled.map(r => r.status === 'fulfilled' ? r.value : null);
+            } else {
+                 // Fallback
+                 rawResults = await Promise.all(Array(candidateCount).fill().map((_, i) => generatePromise(i).catch(e => null)));
+            }
+        }
+    
+        // Process results
+        const candidates = [];
+
+        for (let resultObj of rawResults) {
+            if (!resultObj || !resultObj.text) continue;
+
+            let resultText = resultObj.text;
+            let analysisContent = null;
+
+            // --- PARSE ANALYSIS / CHAIN OF THOUGHT ---
+            const analysisMatch = resultText.match(/\[ANALYSIS\]([\s\S]*?)\[\/ANALYSIS\]/i);
+            if (analysisMatch) {
+                analysisContent = analysisMatch[1].trim();
+                // Remove analysis block from result to get clean text
+                resultText = resultText.replace(/\[ANALYSIS\][\s\S]*?\[\/ANALYSIS\]/i, '').trim();
+            }
+
+            // --- PARSE RESULT BLOCK (If present) ---
+            const resultMatch = resultText.match(/\[RESULT\]([\s\S]*?)\[\/RESULT\]/i);
+            if (resultMatch) {
+                resultText = resultMatch[1].trim();
+            } else {
+                // Cleanup: If tags are present but malformed, or if only tags exist
+                resultText = resultText.replace(/\[RESULT\]/i, '').replace(/\[\/RESULT\]/i, '').trim();
+            }
+
+            // Clean up common artifacts
+            // 1. Remove wrapping triple quotes (model mirroring the prompt delimiters)
+            if (resultText.startsWith('"""') && resultText.endsWith('"""') && resultText.length >= 6) {
+                resultText = resultText.substring(3, resultText.length - 3).trim();
+            }
+            
+            candidates.push({
+                text: resultText,
+                analysis: analysisContent
+            });
+        }
+
+        if (candidates.length > 0) {
+            // --- TOKEN COUNTING (OUTPUT - Average) ---
+            // We'll just log the first one for simplicity or average
+            const firstOutputTokens = await getTokenCountAsync(candidates[0].text);
+            debugLog(`Output Token Count (${mode} - First Candidate): ${firstOutputTokens}`);
+
+            return { success: true, candidates, originalRaw: selectedText };
         }
     } catch (err) {
         console.error(`[${extensionName}] Rewrite generation failed:`, err);
@@ -181,30 +233,35 @@ export async function handleGuidedRewrite(mode, customInput = '', selectionInfo 
     // to avoid losing undo history or cursor position if the user keeps typing.
     // Instead, we'll just show a toast or loader.
     const toastId = toastr.info("Generating rewrite...", "Guided Rewrite", { timeOut: 0, extendedTimeOut: 0 });
+    
+    // Show loading overlay
+    await showLoading(`Generating ${mode} rewrite variations...`);
 
     // Logic: Perform Rewrite
     const result = await performRewrite(mode, selectionInfo, customInput);
     
     toastr.clear(toastId);
+    hideLoading();
 
-    if (result.success) {
+        if (result.success) {
         const settings = getSettings();
 
-        // --- STRATEGY: APPLY FIRST, UNDO IF CANCELLED ---
-        debugLog(`[${extensionName}] Applying rewrite result immediately to editor...`);
-        applyRewriteChange(selectionInfo, result.newMessage);
-
-        if (settings.showDiffView) {
-            // UI: Show Diff Preview
-            const confirmed = await showDiffPreview(selectionInfo.selectedText, result.resultText);
-            
-            if (!confirmed) {
-                debugLog(`[${extensionName}] Diff rejected. Reverting change...`);
-                // Restore original content
-                undoRewrite(selectionInfo.mesId, selectionInfo.fullMessage); 
-            } else {
-                debugLog(`[${extensionName}] Diff confirmed. Keeping change.`);
-            }
+        // --- STRATEGY: PREVIEW FIRST, APPLY ONLY IF CONFIRMED ---
+        // We always show the diff view now to allow the user to confirm the edit
+        // even if they don't want to "edit" it manually, they must confirm the AI's result.
+        debugLog(`[${extensionName}] Showing diff preview before applying...`);
+        // UI: Show Diff Preview - returns confirmed text or null
+        const confirmedText = await showDiffPreview(selectionInfo.selectedText, result.candidates);
+        
+        if (confirmedText !== null) {
+            debugLog(`[${extensionName}] Diff confirmed. Applying change.`);
+            // Construct the full message with the (potentially edited) confirmed text
+            const finalNewMessage = selectionInfo.fullMessage.substring(0, selectionInfo.start) + 
+                                   confirmedText + 
+                                   selectionInfo.fullMessage.substring(selectionInfo.end);
+            applyRewriteChange(selectionInfo, finalNewMessage);
+        } else {
+            debugLog(`[${extensionName}] Diff rejected. No changes made.`);
         }
     }
 }
@@ -219,6 +276,9 @@ function applyRewriteChange(selectionInfo, newMessage) {
 
     debugLog(`[${extensionName}] applyRewriteChange: Updating message ${mesId}`);
     
+    // Log to history
+    rewriteHistoryManager.addEntry(mesId, selectionInfo.fullMessage, newMessage);
+
     // 1. Update the Textarea directly if it's still there
     if (textarea && document.body.contains(textarea)) {
         // Preserve cursor position? Or select the new text?
@@ -301,11 +361,6 @@ export function getSelectedTextInfo() {
     return null;
 }
 
-// Placeholder functions no longer needed for Raw Edit Mode
-function createStreamingPlaceholder(selectionInfo) { return null; }
-function revertStreamingPlaceholder(span, originalText) { }
-
-
 // --- Undo Logic ---
 
 export function undoRewrite(mesId, originalContent) {
@@ -334,10 +389,3 @@ export function undoRewrite(mesId, originalContent) {
         }
     }
 }
-
-export function initRewriteUndo() {
-    if (!window.GuidedGenerations) window.GuidedGenerations = {};
-    window.GuidedGenerations.undoRewrite = undoRewrite;
-}
-
-

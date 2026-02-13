@@ -1,0 +1,144 @@
+/* Menus and Dropdowns */
+
+/* Specific style for the Persistent Guides Menu Button */
+#pg_menu_button {
+    margin-left: 5px; /* Add some spacing from the GG Tools button */
+}
+
+/* Style for the GG tools dropdown/popup menu */
+.gg-tools-menu {
+    position: absolute;
+    z-index: 1050; /* Ensure it's above other elements */
+    display: none; /* Hidden by default */
+    background-color: var(--SmartThemeBlurTintColor); /* Use theme menu background or fallback */
+    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength));
+    backdrop-filter: blur(var(--SmartThemeBlurStrength));
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    flex-flow: column;
+    border-radius: 10px;
+    padding: 2px;
+    border: 1px solid var(--SmartThemeBorderColor, var(--SmartThemeBodyColor));
+    min-width: 150px; /* Minimum width */
+    list-style: none; /* Remove default list styling */
+    margin: 0;
+
+}
+
+.gg-tools-menu.shown {
+    display: block; /* Show when .shown class is added */
+}
+
+/* Style items within the menu */
+.gg-tools-menu > .interactable {
+    display: block; /* Ensure each item takes full width */
+    padding: 5px 10px; /* Add some padding (adjust as needed) */
+    text-decoration: none; /* Remove underline from links */
+    color: var(--SmartThemeBodyColor); /* Ensure text color matches theme */
+}
+
+/* Optional: Add hover effect if not provided by .interactable */
+.gg-tools-menu > .interactable:hover {
+    background-color: var(--SmartThemeHover); /* Match theme hover */
+    color: var(--SmartThemeUi); /* Match theme hover text */
+}
+
+/* Style for items within the tools menu */
+.gg-tools-menu .list-group-item {
+    background-color: transparent; /* Inherit from menu background */
+    color: var(--SmartThemeBodyColor);
+    border: none; /* Remove default list-group borders */
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    display: block; /* Ensure full width clickable */
+    text-decoration: none; /* Remove underline from links */
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+.gg-tools-menu .list-group-item:hover {
+    background-color: var(--SmartThemeHover);
+    color: var(--SmartThemeUi, var(--SmartThemeBodyColor));
+}
+
+/* Persistent Guides Styles */
+#persistent-guides-menu {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    background-color: var(--SmartThemeBg);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    padding: 5px;
+    z-index: 1000;
+    max-width: 200px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.pg-separator {
+    margin: 5px 0;
+    border: 0;
+    height: 1px;
+    background-color: var(--SmartThemeBorderColor);
+}
+
+.persistent-guides-header {
+    font-weight: 500;
+    position: relative;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.2));
+    margin-top: 5px;
+    padding-top: 8px;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--SmartThemeBodyColor);
+}
+
+.persistent-guides-container {
+    display: flex;
+    flex-direction: column;
+    margin-left: 15px;
+}
+
+.persistent-guide-item {
+    padding: 3px 0;
+    text-decoration: none;
+    color: var(--SmartThemeBodyColor);
+    display: flex;
+    align-items: center;
+}
+
+.persistent-guide-item:hover,
+.persistent-guides-header:hover {
+    color: var(--SmartThemeActColor);
+}
+
+.persistent-guide-item i {
+    margin-right: 8px;
+}
+
+.persistent-guides-content {
+    padding-left: 15px;
+}
+
+.persistent-guides-content > .interactable {
+    font-size: 0.95em;
+    padding: 4px 8px;
+}
+
+/* Persistent Guides Counter Badge */
+#pg_counter_badge {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    transform: translate(40%, -40%);
+    background-color: var(--accent-color, #E53E3E); /* Fallback red if accent-color is not defined */
+    color: white;
+    border-radius: 20px; /* Pill shape */
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: bold;
+    line-height: 1;
+    text-align: center;
+    z-index: 1;
+    display: none; /* Hidden by default, shown via JS if count > 0 */
+}

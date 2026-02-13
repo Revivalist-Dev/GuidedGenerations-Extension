@@ -1,19 +1,16 @@
-import { getContext, extension_settings, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, truncateChatForContext, chat, redisplayChat } from './utils/moduleManager.js';
+import { getContext, extension_settings, extensionName, isGroupChat, setPreviousImpersonateInput, getPreviousImpersonateInput, debugLog, debugWarn, truncateChatForContext, chat, redisplayChat, getIsGuideGenerationInProgress, setIsGuideGenerationInProgress } from './utils/moduleManager.js';
 import { getTokenCountAsync } from '/scripts/tokenizers.js';
-
-// Import the guide scripts for direct execution
-import thinkingGuide from './persistentGuides/thinkingGuide.js';
-import stateGuide from './persistentGuides/stateGuide.js';
-import clothesGuide from './persistentGuides/clothesGuide.js';
-import customAutoGuide from './persistentGuides/customAutoGuide.js';
-
-const extensionName = "GuidedGenerations-Extension";
 
 /**
  * Executes a guided response generation.
  * Handles both single-character and group chat scenarios with instruction injection and guide execution.
  */
 const guidedResponse = async () => {
+    if (getIsGuideGenerationInProgress()) {
+        debugWarn("[GuidedGenerations] Generation already in progress, skipping...");
+        return;
+    }
+
     const textarea = document.getElementById('send_textarea');
     if (!textarea) {
         console.error(`[${extensionName}][Response] Textarea #send_textarea not found.`);
@@ -78,15 +75,22 @@ const guidedResponse = async () => {
         stscriptCommand = buildSingleCharacterScript(depth, injectionRole, filledPrompt);
     }
 
-    // Execute Guide Scripts before triggering generation
-    await executeGuideScripts();
-
     // Apply Context Limit Truncation and Execute
     const restore = truncateChatForContext(targetIndex);
     
     try {
+        setIsGuideGenerationInProgress(true);
+        
+        // Disable buttons if possible
+        const btn = document.getElementById('gg_response_button');
+        if (btn) btn.style.opacity = '0.5';
+
         await context.executeSlashCommandsWithOptions(stscriptCommand);
         debugLog(`[${extensionName}][Response] Executed script.`);
+
+        // RESTORE CHAT IMMEDIATELY after generation script finishes
+        // but BEFORE any UI logic (like redisplayChat or token counting) runs
+        restore();
 
         // --- TOKEN COUNTING (OUTPUT) ---
         const lastMessageData = chat[chat.length - 1];
@@ -98,7 +102,12 @@ const guidedResponse = async () => {
         console.error(`[${extensionName}][Response] Execution failed:`, error);
     } finally {
         restore();
-        if (typeof redisplayChat === 'function') await redisplayChat();
+        setIsGuideGenerationInProgress(false);
+        
+        const btn = document.getElementById('gg_response_button');
+        if (btn) btn.style.opacity = '';
+
+        if (typeof redisplayChat === 'function') await redisplayChat(chat, chat.length - 1);
 
         // Restore UI state
         const restoredInput = getPreviousImpersonateInput();
@@ -106,23 +115,6 @@ const guidedResponse = async () => {
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
     }
 };
-
-/**
- * Executes enabled guide scripts.
- */
-async function executeGuideScripts() {
-    try {
-        await Promise.all([
-            thinkingGuide(),
-            stateGuide(),
-            clothesGuide(),
-            customAutoGuide()
-        ]);
-        debugLog(`[${extensionName}][Response] Guide scripts executed.`);
-    } catch (error) {
-        console.error(`[${extensionName}][Response] Error executing guide scripts:`, error);
-    }
-}
 
 /**
  * Extracts character names from group members, stripping file extensions.

@@ -1,5 +1,4 @@
-import { getContext } from '/scripts/extensions.js';
-import { extensionName, debugLog, handleAutoTrigger } from '../../index.js';
+import { getContext, extensionName, debugLog, getIsGuideGenerationInProgress } from './moduleManager.js';
 
 /**
  * Event Manager for Guided Generations.
@@ -7,6 +6,7 @@ import { extensionName, debugLog, handleAutoTrigger } from '../../index.js';
  */
 
 let isInitialized = false;
+
 
 /**
  * Initializes all event listeners for the extension.
@@ -22,18 +22,8 @@ export function initializeEventListeners() {
 
     // Map events to handlers
     const eventHandlers = {
-        [eventTypes.CHAT_CHANGED]: [reapplyTargetVisuals, updateCounter],
-        [eventTypes.CHARACTER_MESSAGE_RENDERED]: [reapplyTargetVisuals, updateCounter],
-        [eventTypes.USER_MESSAGE_RENDERED]: [reapplyTargetVisuals, updateCounter],
-        [eventTypes.APP_READY]: [updateCounter],
-        [eventTypes.CHAT_CREATED]: [updateCounter],
-        [eventTypes.WORLD_INFO_ACTIVATED]: [updateCounter],
-        [eventTypes.GENERATION_STARTED]: [updateCounter],
-        [eventTypes.GENERATION_ENDED]: [updateCounter],
-        [eventTypes.GENERATION_STOPPED]: [updateCounter],
-        [eventTypes.GENERATION_AFTER_COMMANDS]: [handleGenerationAfterCommands, updateCounter],
-        [eventTypes.CONNECTION_PROFILE_LOADED]: [handleProfileLoaded, updateCounter],
-        [eventTypes.PRESET_CHANGED]: [handlePresetChanged, updateCounter],
+        [eventTypes.PROFILE_LOADED]: [handleProfileLoaded],
+        [eventTypes.PRESET_CHANGED]: [handlePresetChanged],
     };
 
     for (const [eventName, handlers] of Object.entries(eventHandlers)) {
@@ -48,24 +38,7 @@ export function initializeEventListeners() {
     debugLog(`Event Manager initialized.`);
 }
 
-async function updateCounter() {
-    if (window.GuidedGenerations?.updatePersistentGuideCounter) {
-        window.GuidedGenerations.updatePersistentGuideCounter();
-    }
-}
 
-function reapplyTargetVisuals() {
-    if (window.GuidedGenerations?.getGuidedGenerationTargetMessageId) {
-        const targetId = window.GuidedGenerations.getGuidedGenerationTargetMessageId();
-        if (targetId) {
-            window.GuidedGenerations.setGuidedGenerationTargetMessageId(targetId);
-        }
-    }
-}
-
-async function handleGenerationAfterCommands(type, generateArgsObject, dryRun) {
-    await handleAutoTrigger(type, generateArgsObject, dryRun);
-}
 
 function handleProfileLoaded(profileName) {
     debugLog(`Profile change detected: "${profileName}"`);

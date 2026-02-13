@@ -1,0 +1,79 @@
+/* Editor and Message Text Styles */
+
+/* UI Normalization for Message Edit Window */
+/* Matches SillyTavern's default .mes_text and .mes_block styles to ensure seamless transition */
+
+.mes_text {
+    padding: 5px 30px 5px 0px !important;
+    margin: 0 !important;
+    width: auto !important;
+}
+
+/* Base style for message block during editing */
+.mes:has(#curEditTextarea) .mes_block {
+    padding: 0 0 0 10px !important;
+    margin: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex-grow: 1 !important;
+    width: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* Target specifically the mes_text containing the editor */
+.mes_text:has(> #curEditTextarea) {
+    background-color: rgba(128, 128, 128, 0.15) !important;
+    border-radius: 5px !important;
+    padding: 5px 30px 5px 0px !important;
+    overflow: visible !important;
+    max-width: none !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    display: block !important; /* Ensure it's not hidden by other extensions */
+    order: 1 !important; /* Force to top of content area if needed, but usually natural order is better */
+}
+
+/* Fix for overlapping issues when memory text or reasoning is present */
+.mes:has(#curEditTextarea) .qvink_memory_text,
+.mes:has(#curEditTextarea) .mes_reasoning_details {
+    margin-top: 10px !important;
+    order: 2 !important;
+}
+
+/* Normalize Edit Mode buttons to match View Mode buttons */
+.mes_edit_buttons .menu_button {
+    font-size: 15px !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 1px 3px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#curEditTextarea {
+    background-color: transparent !important;
+    border: none !important;
+    width: 100% !important;
+    min-height: 50px !important;
+    /* Reset padding here as it is now on .mes_text to match view mode structure */
+    padding: 0 !important;
+    margin: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    resize: none !important;
+    color: inherit !important;
+    /* Manually set font properties to mirror view mode exactly */
+    font-family: "Noto Sans", sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    line-height: 23px !important;
+    overflow-y: hidden !important; /* Managed by JS auto-expansion */
+    height: auto !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    display: block !important;
+}

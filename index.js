@@ -2,7 +2,7 @@ import { eventSource, saveSettingsDebounced } from '/script.js';
 import { getContext, loadExtensionSettings, extension_settings, renderExtensionTemplateAsync } from '/scripts/extensions.js';
 
 // Centralized Utility Managers
-import { getSettings, updateSetting, migrateProfileSettings } from './scripts/utils/settingsManager.js';
+import { getSettings, updateSetting, initializeSettings } from './scripts/utils/settingsManager.js';
 import { initializeEventListeners } from './scripts/utils/eventManager.js';
 import { safeImport } from './scripts/utils/moduleManager.js';
 
@@ -13,73 +13,47 @@ import { guidedResponse } from './scripts/guidedResponse.js';
 import { guidedSwipe } from './scripts/guidedSwipe.js';
 import { guidedContinue, undoLastGuidedAddition, revertToOriginalGuidedContinue, initGuidedContinueListeners } from './scripts/guidedContinue.js';
 import { guidedImpersonate } from './scripts/guidedImpersonate.js';
-import customAutoGuide from './scripts/persistentGuides/customAutoGuide.js'; // Default export import
 import { getPresetManager } from '/scripts/preset-manager.js';
 import { loadSettingsPanel } from './scripts/settingsPanel.js';
 
 import { getProfileList, handleGuidedRewrite } from './scripts/utils/moduleManager.js';
-
-// Import auto-triggerable guides
-import thinkingGuide from './scripts/persistentGuides/thinkingGuide.js';
-import stateGuide from './scripts/persistentGuides/stateGuide.js';
-import clothesGuide from './scripts/persistentGuides/clothesGuide.js';
-import { checkAndExecuteTracker } from './scripts/persistentGuides/trackerLogic.js';
 
 // Logging (now from logger.js)
 import { debugLog, debugWarn, debugError, getDebugMessagesAsText, clearDebugMessages } from './scripts/utils/logger.js';
 
 // Constants
 export const extensionName = "GuidedGenerations-Extension";
-export { extension_settings };
+
 
 // Shared State (Impersonation)
-let previousImpersonateInput = '';
+let previousImpersonateInputs = [];
 let lastImpersonateResult = '';
 let impersonateTemplates = [];
+let isGuideGenerationInProgress = false;
 
 // Re-export logging for compatibility
 export { debugLog, debugWarn, debugError, getDebugMessagesAsText, clearDebugMessages };
 
+export function getIsGuideGenerationInProgress() { return isGuideGenerationInProgress; }
+export function setIsGuideGenerationInProgress(value) { isGuideGenerationInProgress = value; }
+
 // Default Settings (imported to avoid duplication if we want, but keeping here for legacy compatibility)
-import { defaultSettings } from './scripts/utils/constants.js';
-export { defaultSettings };
+import { defaultSettings } from './scripts/utils/defaultSettings.js';
 
-/**
- * Handle auto-triggering of guides based on settings.
- */
-export async function handleAutoTrigger(type, generateArgsObject, dryRun) {
-    const settings = getSettings();
-    const context = getContext();
 
-    // Check activity
-    const hasActiveAutoGuides = settings.autoTriggerThinking || settings.autoTriggerState || settings.autoTriggerClothes || settings.enableAutoCustomAutoGuide;
-    const hasActiveTracker = context?.chatMetadata?.[`${extensionName}_trackers`]?.enabled;
 
-    if (!hasActiveAutoGuides && !hasActiveTracker) return;
-
-    debugLog(`Autotrigger execution starting.`);
-
-    // Lazy load guide functional logic
-    const exports = await safeImport('./scripts/utils/moduleManager.js', 'Guide Engine');
-    if (!exports) return;
-
-    if (settings.autoTriggerThinking) await exports.thinkingGuide(true);
-    if (settings.autoTriggerState) await exports.stateGuide(true);
-    if (settings.autoTriggerClothes) await exports.clothesGuide(true);
-    if (settings.enableAutoCustomAutoGuide) await exports.customAutoGuide(true);
-    
-    await exports.checkAndExecuteTracker();
-}
 
 /**
  * Load impersonate templates with dynamic path resolution.
  */
 async function loadImpersonateTemplates() {
     try {
-        const response = await fetch(`scripts/extensions/third-party/${extensionName}/impersonateTemplates.json`);
+        const response = await fetch(`/scripts/extensions/third-party/${extensionName}/scripts/templates/impersonateTemplates.json`);
         if (response.ok) {
             impersonateTemplates = await response.json();
             debugLog(`Loaded ${impersonateTemplates.length} impersonate templates.`);
+        } else {
+            debugError(`Failed to load impersonate templates: ${response.statusText}`);
         }
     } catch (error) {
         debugError(`Error loading impersonate templates:`, error);
@@ -91,8 +65,23 @@ export function getImpersonateTemplate(id) {
 }
 
 // --- SHARED STATE GETTERS/SETTERS ---
-export function getPreviousImpersonateInput() { return previousImpersonateInput; }
-export function setPreviousImpersonateInput(value) { previousImpersonateInput = value; }
+export function getPreviousImpersonateInput() {
+    return previousImpersonateInputs.length > 0 ? previousImpersonateInputs[previousImpersonateInputs.length - 1] : '';
+}
+export function setPreviousImpersonateInput(value) {
+    if (!value || !value.trim()) return;
+    // Don't add if it's the same as the last one
+    if (previousImpersonateInputs.length > 0 && previousImpersonateInputs[previousImpersonateInputs.length - 1] === value) return;
+    
+    previousImpersonateInputs.push(value);
+    // Keep a reasonable limit
+    if (previousImpersonateInputs.length > 50) {
+        previousImpersonateInputs.shift();
+    }
+}
+export function popPreviousImpersonateInput() {
+    return previousImpersonateInputs.pop() || '';
+}
 export function getLastImpersonateResult() { return lastImpersonateResult; }
 export function setLastImpersonateResult(value) { lastImpersonateResult = value; }
 
@@ -100,26 +89,44 @@ export function setLastImpersonateResult(value) { lastImpersonateResult = value;
  * Main Setup function
  */
 async function setup() {
+    debugLog(`[${extensionName}] Starting setup function.`);
+    await initializeSettings();
+    debugLog(`[${extensionName}] Loading impersonate templates...`);
     await loadImpersonateTemplates();
-    const settings = getSettings();
-    migrateProfileSettings();
+    debugLog(`[${extensionName}] Impersonate templates loaded.`);
+
+
     
     // Core UI Logic initialization
+    debugLog(`[${extensionName}] Initializing UI Manager...`);
     const { initializeUI } = await safeImport('./scripts/ui/uiManager.js', 'UI Manager') || {};
     if (initializeUI) {
         await initializeUI();
+        debugLog(`[${extensionName}] UI Manager initialized.`);
     } else {
         debugError("Failed to import UI Manager. Extension UI may not load correctly.");
     }
     
+    debugLog(`[${extensionName}] Initializing Guided Continue Listeners...`);
     initGuidedContinueListeners();
+    debugLog(`[${extensionName}] Guided Continue Listeners initialized.`);
+    debugLog(`[${extensionName}] Initializing Event Listeners...`);
     initializeEventListeners(); // centralize all ST events
+    debugLog(`[${extensionName}] Event Listeners initialized.`);
     
-    // Initial counter update
-    updatePersistentGuideCounter();
+
+
+    // Auto-expanding edit textarea
+    $(document).on('input focus', '#curEditTextarea', function () {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+        $(this).css('overflow-y', 'hidden');
+    });
 
      // Load Settings Panel (delayed to ensure context)
+    debugLog(`[${extensionName}] Loading settings panel...`);
     setTimeout(() => loadSettingsPanel(getContext()), 1000);
+    debugLog(`[${extensionName}] Settings panel loading initiated.`);
 }
 
 /**
@@ -131,7 +138,7 @@ export function setGuidedGenerationTargetMessageId(id) {
     $('.guided_target_button.active').removeClass('active');
     guidedGenerationTargetMessageId = id;
     if (id !== null) {
-        const $targetRow = $(`#chat .mes[mesid="${id}"]`);
+        const $targetRow = $(`#chat .mes`).filter((_, el) => el.getAttribute('mesid') == id);
         if ($targetRow.length) {
             $targetRow.addClass('guided-generation-target');
             $targetRow.find('.guided_target_button').addClass('active');
@@ -142,25 +149,7 @@ export function getGuidedGenerationTargetMessageId() {
     return guidedGenerationTargetMessageId;
 }
 
-/**
- * Persistent Guide Counter display logic
- */
-export function updatePersistentGuideCounter() {
-    const context = getContext();
-    if (!context) return;
-    const count = context.chatMetadata?.script_injects ? Object.keys(context.chatMetadata.script_injects).length : 0;
-    const pgMenuButton = document.getElementById('pg_menu_button');
-    if (pgMenuButton) {
-        let counterSpan = pgMenuButton.querySelector('#pg_guide_counter_span') || document.createElement('span');
-        if (!counterSpan.id) {
-            counterSpan.id = 'pg_guide_counter_span';
-            counterSpan.className = 'pg-guide-counter';
-            pgMenuButton.appendChild(counterSpan);
-        }
-        counterSpan.textContent = ` ${count}`;
-        pgMenuButton.title = `Persistent Guides: ${count} Injections active.`;
-    }
-}
+
 
 $(document).ready(async function () {
     await setup();
@@ -174,14 +163,13 @@ window.GuidedGenerations = {
     undoLastGuidedAddition,
     revertToOriginalGuidedContinue,
     guidedResponse,
-    handleAutoTrigger,
-    getSettings,
-    updateSetting,
-    updatePersistentGuideCounter,
+    guidedImpersonate,
+
     setGuidedGenerationTargetMessageId,
     getGuidedGenerationTargetMessageId
 };
 
 // Re-export for sub-modules
 export { updateSettingsUI, addSettingsEventListeners } from './scripts/settingsPanel.js';
+export { extension_settings };
 

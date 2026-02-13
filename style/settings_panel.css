@@ -1,0 +1,34 @@
+/* Settings panel specific styles */
+.gg-setting-inline {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.gg-setting-inline label {
+    margin-left: 8px;
+    cursor: pointer;
+}
+
+.gg-setting-inline input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Ensure preset input and buttons wrap on narrow widths */
+.GuidedGenerations-Extension-settingslist .setting_item > div {
+    flex-wrap: wrap;
+}
+
+.setting_item {
+    padding-left: 10px; /* Indent items slightly */
+    padding-right: 10px;
+}
+
+.guide-prompt-overrides-section .setting_item {
+    margin-bottom: 15px;
+}
+
+.setting_item label {
+    margin-left: 8px;
+    cursor: pointer;
+}

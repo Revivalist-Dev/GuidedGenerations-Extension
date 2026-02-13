@@ -1,0 +1,22 @@
+[
+    {
+        "id": "rewrite",
+        "name": "Default Rewrite",
+        "content": "[OOC: You are an expert editor. Your task is to rewrite a section of text to improve its flow and style.\n\nOLD TEXT:\n\"\"\"{{rewrite}}\"\"\"\n\nCONTEXT:\nPRECEDING TEXT:\n\"\"\"{{context}}\"\"\"\n\nFOLLOWING TEXT:\n\"\"\"{{after}}\"\"\"\n\nREQUIRED FORMAT:\n[ANALYSIS]\n1. Analyze the tone and narrative flow of the OLD TEXT.\n2. Identify awkward phrasing or repetitive words to improve.\n3. Ensure the new text matches the character's voice and connects smoothly to the FOLLOWING TEXT.\n4. Strategy: {{variance}}\n[/ANALYSIS]\n\n[RESULT]\n(Write the rewritten text here. It must flow naturally from the PRECEDING TEXT into the FOLLOWING TEXT.)\n[/RESULT]]"
+    },
+    {
+        "id": "shorten",
+        "name": "Shorten",
+        "content": "[OOC: You are an expert editor. Your task is to shorten a section of text by approximately 20%.\n\nOLD TEXT:\n\"\"\"{{rewrite}}\"\"\"\n\nCONTEXT:\nPRECEDING TEXT:\n\"\"\"{{context}}\"\"\"\n\nFOLLOWING TEXT:\n\"\"\"{{after}}\"\"\"\n\nREQUIRED FORMAT:\n[ANALYSIS]\n1. Identify redundant information, filler words, or overly wordy descriptions in the OLD TEXT.\n2. Plan how to condense the meaning without losing core information.\n3. Ensure smooth transition to the FOLLOWING TEXT.\n4. Strategy: {{variance}}\n[/ANALYSIS]\n\n[RESULT]\n(Write the shortened text here. It must flow naturally from the PRECEDING TEXT into the FOLLOWING TEXT.)\n[/RESULT]]"
+    },
+    {
+        "id": "expand",
+        "name": "Expand",
+        "content": "[OOC: You are an expert editor. Your task is to expand a section of text by approximately 20%, adding descriptive detail.\n\nOLD TEXT:\n\"\"\"{{rewrite}}\"\"\"\n\nCONTEXT:\nPRECEDING TEXT:\n\"\"\"{{context}}\"\"\"\n\nFOLLOWING TEXT:\n\"\"\"{{after}}\"\"\"\n\nREQUIRED FORMAT:\n[ANALYSIS]\n1. Identify areas in the OLD TEXT that lack sensory details, internal monologue, or atmosphere.\n2. Plan where to insert new descriptive elements to enhance the scene.\n3. Ensure consistency with the PRECEDING and FOLLOWING TEXT.\n4. Strategy: {{variance}}\n[/ANALYSIS]\n\n[RESULT]\n(Write the expanded text here. It must flow naturally from the PRECEDING TEXT into the FOLLOWING TEXT.)\n[/RESULT]]"
+    },
+    {
+        "id": "instruct",
+        "name": "Instruct Rewrite",
+        "content": "[OOC: You are an expert editor. Your task is to rewrite a section of text based on instructions.\n\nOLD TEXT:\n\"\"\"{{rewrite}}\"\"\"\n\nCONTEXT:\nPRECEDING TEXT:\n\"\"\"{{context}}\"\"\"\n\nFOLLOWING TEXT:\n\"\"\"{{after}}\"\"\"\n\nINSTRUCTIONS:\n\"{{input}}\"\n\nREQUIRED FORMAT:\n[ANALYSIS]\n1. Analyze the INSTRUCTIONS and the OLD TEXT.\n2. List exactly what to keep and what to DELETE.\n3. Verify if the INSTRUCTIONS require removing specific details.\n4. Check logical flow into the FOLLOWING TEXT.\n5. Strategy: {{variance}}\n[/ANALYSIS]\n\n[RESULT]\n(Write the final text here. It must flow from the PRECEDING TEXT, strictly follow the analysis, and connect to the FOLLOWING TEXT.)\n[/RESULT]]"
+    }
+]

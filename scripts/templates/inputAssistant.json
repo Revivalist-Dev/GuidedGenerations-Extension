@@ -1,0 +1,7 @@
+[
+    {
+        "id": "input_assistant_default",
+        "name": "Default Input Assistant",
+        "content": "[OOC: You are an expert creative writing assistant. Your goal is to refine the user's draft input to be more evocative, natural, and fitting for a roleplay context.\n\nDRAFT INPUT:\n\"\"\"{{input}}\"\"\"\n\nTASK:\n1. Analyze the intent of the draft.\n2. Rewrite it to improve flow, vocabulary, and tone.\n3. Keep it concise but descriptive.\n\n[RESULT]\n(Write ONLY the suggested refinement here)\n[/RESULT]]"
+    }
+]

@@ -3,20 +3,18 @@
 import { getContext, extension_settings, debugLog, setPreviousImpersonateInput, getPreviousImpersonateInput, truncateChatForContext } from './utils/moduleManager.js'; // Import from central hub
 import { swipe, chat, redisplayChat, Generate } from '/script.js';
 import { SWIPE_DIRECTION, SWIPE_SOURCE, OVERSWIPE_BEHAVIOR } from '/scripts/constants.js';
-import { guidedImpersonateSwipe } from './guidedImpersonateSwipe.js';
 import { getTokenCountAsync } from '/scripts/tokenizers.js';
 
 // Helper function for delays
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const extensionName = "GuidedGenerations-Extension";
 // Helper function to execute STScripts using the context method
 // NOTE: This version assumes executeSlashCommandsWithOptions exists and handles errors locally.
 // It might need adjustments based on the exact SillyTavern API if it changes.
 async function executeSTScriptCommand(command) {
     try {
         // Check if SillyTavern context is available
-        if (typeof SillyTavern !== 'undefined' && typeof SillyTavern.getContext === 'function') {
-            const context = SillyTavern.getContext();
+        if (typeof getContext === 'function') {
+            const context = getContext();
             // Check if the method exists on the context
             if (typeof context.executeSlashCommandsWithOptions === 'function') {
                 // Execute the command via the context
@@ -90,7 +88,11 @@ async function generateNewSwipe(forceTargetIndex = -1) {
         }
 
         let messageData = context.chat[targetIndex];
-        const mesDom = document.querySelector(`#chat .mes[mesid="${targetIndex}"]`);
+        const mesDom = [...document.querySelectorAll('#chat .mes')].find(el => el.getAttribute('mesid') == targetIndex);
+        if (!mesDom) {
+            debugWarn(`[GuidedGenerations-Extension] Could not find DOM element for message index ${targetIndex}`);
+            return;
+        }
 
         // --- TOKEN COUNTING (INPUT/PRE-SWIPE) ---
         const textarea = document.getElementById('send_textarea');
@@ -262,7 +264,7 @@ const guidedSwipe = async (event) => {
     }
     const originalInput = textarea.value; // Get current input
 
-    const depth = extension_settings[extensionName]?.depthPromptGuidedSwipe ?? 0;
+    const depth = extension_settings["GuidedGenerations-Extension"]?.depthPromptGuidedSwipe ?? 0;
 
     // DETERMINE TARGET INDEX
     let targetIndex = chat.length - 1;
@@ -292,14 +294,14 @@ const guidedSwipe = async (event) => {
     }
 
     // Get the LATEST injection role setting HERE
-    const injectionRole = extension_settings[extensionName]?.injectionEndRole ?? 'system'; // Get the role setting
+    const injectionRole = extension_settings["GuidedGenerations-Extension"]?.injectionEndRole ?? 'system'; // Get the role setting
 
     try {
         // Save the input state using the shared function (imported)
         setPreviousImpersonateInput(originalInput);
 
         // Use user-defined guided swipe prompt override
-        const promptTemplate = extension_settings[extensionName]?.promptGuidedSwipe ?? '';
+        const promptTemplate = extension_settings["GuidedGenerations-Extension"]?.promptGuidedSwipe ?? '';
         const filledPrompt = promptTemplate.replace('{{input}}', originalInput);
 
         // --- 1. Store Input & Inject Context (if any) --- (Use direct context method)
@@ -332,8 +334,8 @@ const guidedSwipe = async (event) => {
         const checkDelay = 150; // Milliseconds to wait between checks
 
         for (let i = 0; i < maxAttempts; i++) {
-            const currentContext = SillyTavern.getContext(); // Get fresh context each time
-            if (currentContext.chatMetadata?.script_injects?.instruct) {
+            const context = getContext();
+            if (context.chatMetadata?.script_injects?.instruct) {
                 debugLog(`[Swipe] Injection found after attempt ${i + 1}.`);
                 injectionFound = true;
                 break; // Exit loop once found
@@ -366,8 +368,8 @@ const guidedSwipe = async (event) => {
         let swipeSuccess = false;
         
         if (targetMessage && targetMessage.is_user) {
-            debugLog(`[Swipe] Target is a user message, delegating to guidedImpersonateSwipe for generation.`);
-            swipeSuccess = await guidedImpersonateSwipe(targetIndex, filledPrompt);
+            debugLog(`[Swipe] Target is a user message. Impersonate swiping is currently disabled, performing standard swipe.`);
+            swipeSuccess = await generateNewSwipe(targetIndex);
         } else {
             swipeSuccess = await generateNewSwipe(targetIndex);
         }

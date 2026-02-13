@@ -1,0 +1,22 @@
+[
+    {
+        "id": "corrections",
+        "name": "Corrections",
+        "content": "[OOC: Answer me out of Character! Don't continue the RP. Do not continue the story and do not write in character. Instead, rewrite {{char}}'s last response (msgtorework) to reflect the following changes: {{input}}. Maintain the original style and character voice, but ensure the new response aligns exactly with the instructions. Do not make any other changes.][/OOC]"
+    },
+    {
+        "id": "guidedResponse",
+        "name": "Guided Response",
+        "content": "[OOC: Take the following instructions into special consideration for your next response. You MUST prioritize these instructions while maintaining character consistency and story flow:\n\nInstructions:\n{{input}}][/OOC]"
+    },
+    {
+        "id": "guidedSwipe",
+        "name": "Guided Swipe",
+        "content": "[OOC: Take the following instructions into special consideration for your next response. You MUST prioritize these instructions while maintaining character consistency and story flow:\n\nInstructions:\n{{input}}][/OOC]"
+    },
+    {
+        "id": "guidedContinue",
+        "name": "Guided Continue",
+        "content": "[OOC: Continue the story naturally, but ensure you incorporate the following input into the narrative:\n\nInstructions:\n{{input}}][/OOC]"
+    }
+]

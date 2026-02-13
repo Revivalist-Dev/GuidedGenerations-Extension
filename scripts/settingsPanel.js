@@ -1,10 +1,10 @@
 // scripts/settingsPanel.js
 
-import { extensionName, defaultSettings } from './utils/constants.js';
-import { extension_settings, debugLog, debugWarn, getDebugMessagesAsText, clearDebugMessages } from '../index.js';
+import { extension_settings, debugLog, debugWarn, extensionName } from '../index.js';
 import { getSettings, updateSetting } from './utils/settingsManager.js';
-import { renderExtensionTemplateAsync, getContext } from '/scripts/extensions.js';
-import { getProfileList, getPresetsForApiType, getProfileApiType, getCurrentProfile } from './utils/presetUtils.js';
+import { renderExtensionTemplateAsync, getContext, loadExtensionSettings } from '/scripts/extensions.js';
+import { getProfileList, getPresetsForApiType, getProfileApiType, getCurrentProfile, escapeCssSelector } from './utils/presetUtils.js';
+import { defaultSettings } from './utils/defaultSettings.js';
 
 /**
  * Loads and renders the settings HTML for the extension.
@@ -30,15 +30,115 @@ export async function loadSettingsPanel() {
         container.innerHTML = '';
     }
 
+    const templatePath = `third-party/${extensionName}/html/templates`;
+
     try {
-        const settingsHtml = await renderExtensionTemplateAsync(`third-party/${extensionName}`, 'settings');
-        $(container).html(settingsHtml);
+        const settingsMainHtml = await renderExtensionTemplateAsync(templatePath, 'settings-main');
+        $(container).html(settingsMainHtml);
+
+        const contentContainer = container.querySelector('.inline-drawer-content');
+
+        const actionButtonsHtml = await renderExtensionTemplateAsync(templatePath, 'settings-action-buttons');
+        contentContainer.insertAdjacentHTML('beforeend', actionButtonsHtml);
+
+        const toolButtonsHtml = await renderExtensionTemplateAsync(templatePath, 'settings-tool-buttons');
+        contentContainer.insertAdjacentHTML('beforeend', toolButtonsHtml);
+
+        const uiPreferencesHtml = await renderExtensionTemplateAsync(templatePath, 'settings-ui-preferences');
+        contentContainer.insertAdjacentHTML('beforeend', uiPreferencesHtml);
+
+        // Auto-Triggers is a removed feature, so it will not be re-added
+
+        const injectionSettingsHtml = await renderExtensionTemplateAsync(templatePath, 'settings-injection');
+        contentContainer.insertAdjacentHTML('beforeend', injectionSettingsHtml);
+
+        const promptOverridesSectionHtml = await renderExtensionTemplateAsync(templatePath, 'settings-prompt-overrides');
+        contentContainer.insertAdjacentHTML('beforeend', promptOverridesSectionHtml);
+
+        const promptOverrideItemHtml = await renderExtensionTemplateAsync(templatePath, 'settings-prompt-override-item');
+        
+        // Dynamically add prompt override items
+        const promptOverridesContainer = contentContainer.querySelector('.guide-prompt-overrides-section');
+        if (promptOverridesContainer) {
+            // Load defaults from JSON via settingsManager helper
+            const { loadDefaultTemplates } = await import('./utils/settingsManager.js');
+            const defaultTemplates = await loadDefaultTemplates();
+            const overridesDefaults = defaultTemplates.promptOverrides || [];
+            const impersonateTemplates = defaultTemplates.impersonateTemplates || [];
+
+            const promptOverrides = [
+                { 
+                    name: 'Corrections', 
+                    label: 'Corrections Prompt', 
+                    placeholder: '', 
+                    showRaw: true, 
+                    showDepth: true, 
+                    default: overridesDefaults.find(t => t.id === 'corrections')?.content || defaultSettings.promptCorrections 
+                },
+                { 
+                    name: 'GuidedContinue', 
+                    label: 'Guided Continue Prompt', 
+                    placeholder: '', 
+                    showRaw: false, 
+                    showDepth: false, 
+                    default: overridesDefaults.find(t => t.id === 'guidedContinue')?.content || defaultSettings.promptGuidedContinue 
+                },
+                { 
+                    name: 'GuidedResponse', 
+                    label: 'Guided Response Prompt', 
+                    placeholder: '', 
+                    showRaw: false, 
+                    showDepth: true, 
+                    default: overridesDefaults.find(t => t.id === 'guidedResponse')?.content || defaultSettings.promptGuidedResponse 
+                },
+                { 
+                    name: 'GuidedSwipe', 
+                    label: 'Guided Swipe Prompt', 
+                    placeholder: '', 
+                    showRaw: false, 
+                    showDepth: true, 
+                    default: overridesDefaults.find(t => t.id === 'guidedSwipe')?.content || defaultSettings.promptGuidedSwipe
+                },
+                {
+                    name: 'Impersonate',
+                    label: 'Impersonate Prompt',
+                    placeholder: 'Select a template above or enter custom prompt',
+                    showRaw: false,
+                    showDepth: false,
+                    default: impersonateTemplates.find(t => t.id === getSettings().impersonateTemplate)?.content || ''
+                },
+            ];
+
+            for (const promptOverride of promptOverrides) {
+                let itemHtml = promptOverrideItemHtml;
+                itemHtml = itemHtml.replaceAll('{{name}}', promptOverride.name);
+                itemHtml = itemHtml.replaceAll('{{label}}', promptOverride.label);
+                itemHtml = itemHtml.replaceAll('{{placeholder}}', promptOverride.placeholder || '');
+                itemHtml = itemHtml.replaceAll('{{default}}', (promptOverride.default || '').replace(/'/g, "'").replace(/"/g, ''));
+
+
+                if (promptOverride.showRaw) {
+                    itemHtml = itemHtml.replace('{{#if showRaw}}', '').replace('{{/if}}', '');
+                } else {
+                    itemHtml = itemHtml.replace(/{{#if showRaw}}[\s\S]*?{{\/if}}/g, '');
+                }
+                if (promptOverride.showDepth) {
+                    itemHtml = itemHtml.replace('{{#if showDepth}}', '').replace('{{/if}}', '');
+                } else {
+                    itemHtml = itemHtml.replace(/{{#if showDepth}}[\s\S]*?{{\/if}}/g, '');
+                }
+                promptOverridesContainer.insertAdjacentHTML('beforeend', itemHtml);
+            }
+        }
+
+        const rewriteSettingsHtml = await renderExtensionTemplateAsync(templatePath, 'settings-rewrite');
+        contentContainer.insertAdjacentHTML('beforeend', rewriteSettingsHtml);
 
         // Remove any manual clear buttons to avoid duplicates
         container.querySelectorAll('.gg-clear-button').forEach(btn => btn.remove());
 
         setTimeout(async () => {
-            loadSettings();
+            loadExtensionSettings(extensionName);
             await updateSettingsUI();
             addSettingsEventListeners();
 
@@ -67,235 +167,138 @@ export async function loadSettingsPanel() {
                 } else {
                     clearBtn.setAttribute('data-target', btn.getAttribute('data-target'));
                 }
-
-                btn.addEventListener('click', () => {
-                    const key = btn.getAttribute('data-target');
-                    const input = document.getElementById(`gg_${key}`);
-                    if (input) {
-                        input.value = 'GGSytemPrompt';
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                });
-
-                clearBtn.addEventListener('click', () => {
-                    const key = clearBtn.getAttribute('data-target');
-                    const input = document.getElementById(`gg_${key}`);
-                    if (input) {
-                        input.value = '';
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                });
             });
-
-            // Setup default buttons
-            const defaultButtons = container.querySelectorAll('.gg-default-button');
-            defaultButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const key = btn.getAttribute('data-target');
-                    const input = document.getElementById(`gg_${key}`);
-                    if (input && defaultSettings.hasOwnProperty(key)) {
-                        input.value = defaultSettings[key];
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    } else {
-                        debugWarn(`[${extensionName}] Could not find input for gg_${key} or default setting for ${key}`);
-                    }
-                });
-            });
-
-            // Setup refresh profile dropdowns button
-            const refreshButton = container.querySelector('#refreshProfileDropdowns');
-            if (refreshButton) {
-                refreshButton.addEventListener('click', async () => {
-                    try {
-                        await updateSettingsUI();
-                    } catch (error) {
-                        console.error(`[${extensionName}] Error refreshing profile dropdowns:`, error);
-                    }
-                });
-            }
-
-            // Set width on preset text inputs
-            container.querySelectorAll('.gg-setting-input[type="text"]').forEach(input => {
-                input.style.minWidth = '200px';
-            });
-
-        }, 100);
+        }, 0);
     } catch (error) {
-        console.error(`[${extensionName}] Error rendering settings template:`, error);
-        if (container) {
-            container.innerHTML = '<p>Error: Could not render settings template. Check browser console (F12).</p>';
-        }
+        console.error(`${extensionName}: Could not load settings panel HTML:`, error);
     }
 }
 
-/**
- * Populates UI fields from extension settings.
- */
-export function loadSettings() {
-    const settings = getSettings();
-    for (const key in settings) {
-        const id = `gg_${key}`;
-        const element = document.getElementById(id) || document.getElementById(key); // Check both prefixed and non-prefixed
-        if (!element) continue;
-
-        if (element.type === 'checkbox') {
-            element.checked = !!settings[key];
-        } else {
-            element.value = settings[key];
-        }
-    }
-    debugLog(`[${extensionName}] Settings loaded into UI.`);
-}
-
-/**
- * Updates settings UI dropdowns (profiles and presets).
- */
-export async function updateSettingsUI() {
-    try {
-        const profileList = await getProfileList();
-        const currentProfile = await getCurrentProfile();
-        const settings = getSettings();
-
-        // Get all profile select elements
-        const profileSelects = document.querySelectorAll('select[id^="profile"]');
-        for (const select of profileSelects) {
-            const key = select.id;
-            const currentValue = settings[key] || '';
-            
-            select.innerHTML = '<option value="">(Current Profile)</option>';
-            profileList.forEach(profileName => {
-                const option = document.createElement('option');
-                option.value = profileName;
-                option.text = profileName;
-                option.selected = profileName === currentValue;
-                select.appendChild(option);
-            });
-
-            // Also populate the corresponding preset dropdown
-            const presetId = key.replace('profile', 'preset');
-            const presetSelect = document.getElementById(presetId);
-            if (presetSelect) {
-                await updatePresetDropdown(presetSelect, currentValue || currentProfile, settings[presetId]);
-            }
-        }
-        debugLog(`[${extensionName}] Profile and preset dropdowns updated.`);
-    } catch (error) {
-        console.error(`[${extensionName}] Error updating settings UI:`, error);
-    }
-}
-
-/**
- * Helper to update a preset dropdown based on a profile.
- */
-async function updatePresetDropdown(select, profileName, currentValue) {
-    if (!profileName) {
-        select.innerHTML = '<option value="">None</option>';
-        return;
-    }
-
-    try {
-        const apiType = await getProfileApiType(profileName);
-        if (!apiType) {
-            select.innerHTML = '<option value="">(Select Profile First)</option>';
-            return;
-        }
-
-        const presets = await getPresetsForApiType(apiType);
-        select.innerHTML = '<option value="">None</option>';
-        
-        if (Array.isArray(presets)) {
-            presets.forEach(preset => {
-                const option = document.createElement('option');
-                // Support both object and string formats from ST
-                const name = typeof preset === 'object' ? (preset.name || preset.id) : preset;
-                option.value = name;
-                option.text = name;
-                option.selected = name === currentValue;
-                select.appendChild(option);
-            });
-        } else {
-            debugWarn(`[${extensionName}] Presets for API type ${apiType} is not an array:`, presets);
-        }
-    } catch (error) {
-        debugWarn(`[${extensionName}] Error updating presets for profile ${profileName}:`, error);
-    }
-}
-
-/**
- * Attaches event listeners to all GG setting inputs.
- */
 export function addSettingsEventListeners() {
-    const inputs = document.querySelectorAll('.gg-setting-input');
-    inputs.forEach(input => {
-        // Remove existing listener to avoid duplicates
-        input.removeEventListener('change', handleSettingChange);
-        input.addEventListener('change', handleSettingChange);
+    const settings = getSettings();
+    const container = document.getElementById(`extension_settings_${extensionName}`);
+
+    // Event listeners for checkboxes and text inputs
+    container.querySelectorAll('.gg-setting-input').forEach(input => {
+        input.addEventListener('change', (event) => {
+            const key = event.target.name;
+            let value;
+            if (event.target.type === 'checkbox') {
+                value = event.target.checked;
+            } else if (event.target.type === 'number') {
+                value = Number(event.target.value);
+            } else {
+                value = event.target.value;
+            }
+            updateSetting(key, value);
+            debugLog(`[${extensionName}] Setting updated: ${key} = ${value}`);
+        });
     });
 
-    // Special handling for profile changes to update preset lists
-    const profileSelects = document.querySelectorAll('select[id^="profile"]');
-    profileSelects.forEach(select => {
-        select.addEventListener('change', async () => {
-            const presetId = select.id.replace('profile', 'preset');
-            const presetSelect = document.getElementById(presetId);
-            if (presetSelect) {
-                await updatePresetDropdown(presetSelect, select.value || await getCurrentProfile(), '');
+    // Update Impersonate default when template changes
+    const impersonateTemplateSelect = document.getElementById('gg_impersonateTemplate');
+    if (impersonateTemplateSelect) {
+        impersonateTemplateSelect.addEventListener('change', async (event) => {
+            const templateId = event.target.value;
+            const { loadDefaultTemplates } = await import('./utils/settingsManager.js');
+            const defaultTemplates = await loadDefaultTemplates();
+            const impersonateTemplates = defaultTemplates.impersonateTemplates || [];
+            const template = impersonateTemplates.find(t => t.id === templateId);
+            
+            if (template) {
+                const defaultBtn = container.querySelector('.gg-default-button[data-target="promptImpersonate"]');
+                if (defaultBtn) {
+                    defaultBtn.dataset.default = template.content.replace(/'/g, "'").replace(/"/g, '"');
+                }
+                
+                // Optional: Automatically update the textarea if it's currently empty
+                const textarea = container.querySelector('[name="promptImpersonate"]');
+                if (textarea && !textarea.value.trim()) {
+                    textarea.value = template.content;
+                    updateSetting('promptImpersonate', template.content);
+                }
+            }
+        });
+    }
+
+    // Event listeners for default buttons
+    container.querySelectorAll('.gg-default-button').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const targetSetting = event.target.dataset.target;
+            const defaultValue = event.target.dataset.default;
+
+            const inputElement = container.querySelector(`[name="${targetSetting}"]`);
+            if (inputElement) {
+                inputElement.value = defaultValue;
+                updateSetting(targetSetting, defaultValue);
+                debugLog(`[${extensionName}] Reset setting to default: ${targetSetting} = ${defaultValue}`);
             }
         });
     });
 
-    // Debug Log Buttons
-    const copyDebugLogBtn = document.getElementById('gg_copy_debug_log');
-    if (copyDebugLogBtn) {
-        copyDebugLogBtn.addEventListener('click', () => {
-            const debugMessages = getDebugMessagesAsText();
-            navigator.clipboard.writeText(debugMessages).then(() => {
-                copyDebugLogBtn.textContent = 'Copied!';
-                setTimeout(() => copyDebugLogBtn.textContent = 'Copy Debug Log', 1500);
-            }).catch(err => {
-                console.error('Failed to copy debug log: ', err);
-            });
-        });
-    }
-
-    const downloadDebugLogBtn = document.getElementById('gg_download_debug_log');
-    if (downloadDebugLogBtn) {
-        downloadDebugLogBtn.addEventListener('click', () => {
-            const debugMessages = getDebugMessagesAsText();
-            const blob = new Blob([debugMessages], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `guided_generations_debug_log_${new Date().toISOString().slice(0, 10)}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            downloadDebugLogBtn.textContent = 'Downloaded!';
-            setTimeout(() => downloadDebugLogBtn.textContent = 'Download Debug Log', 1500);
-        });
-    }
-
-    const clearDebugLogBtn = document.getElementById('gg_clear_debug_log');
-    if (clearDebugLogBtn) {
-        clearDebugLogBtn.addEventListener('click', () => {
-            clearDebugMessages();
-            clearDebugLogBtn.textContent = 'Cleared!';
-            setTimeout(() => clearDebugLogBtn.textContent = 'Clear Debug Log', 1500);
-        });
-    }
+    // Debug log buttons
+    document.getElementById('gg_copyDebugLogs')?.addEventListener('click', async () => {
+        const { copyDebugLogs } = await import('./utils/logger.js');
+        copyDebugLogs();
+    });
+    document.getElementById('gg_downloadDebugLogs')?.addEventListener('click', async () => {
+        const { downloadDebugLogs } = await import('./utils/logger.js');
+        downloadDebugLogs();
+    });
+    document.getElementById('gg_clearDebugLogs')?.addEventListener('click', async () => {
+        const { clearDebugLogs } = await import('./utils/logger.js');
+        clearDebugLogs();
+    });
 }
 
-/**
- * Handles individual setting change.
- */
-async function handleSettingChange(event) {
-    const element = event.target;
-    const key = element.id.startsWith('gg_') ? element.id.substring(3) : element.id;
-    const value = element.type === 'checkbox' ? element.checked : element.value;
+export async function updateSettingsUI() {
+    const settings = getSettings();
+    const container = document.getElementById(`extension_settings_${extensionName}`);
+    const { loadDefaultTemplates } = await import('./utils/settingsManager.js');
+    const defaultTemplates = await loadDefaultTemplates();
 
-    updateSetting(key, value);
-    debugLog(`[${extensionName}] Setting "${key}" updated to:`, value);
+    // Update checkboxes and text inputs
+    for (const key in settings) {
+        const inputElement = container.querySelector(`[name="${key}"]`);
+        if (inputElement) {
+            if (inputElement.type === 'checkbox') {
+                inputElement.checked = settings[key];
+            } else if (inputElement.type === 'number') {
+                inputElement.value = Number(settings[key]);
+            } else {
+                inputElement.value = settings[key];
+            }
+        }
+    }
+
+    // Populate impersonate template dropdown
+    const impersonateTemplateSelect = document.getElementById('gg_impersonateTemplate');
+    if (impersonateTemplateSelect) {
+        impersonateTemplateSelect.innerHTML = '';
+        const impersonateTemplates = defaultTemplates.impersonateTemplates || [];
+        
+        impersonateTemplates.forEach(template => {
+            const option = document.createElement('option');
+            option.value = template.id;
+            option.textContent = template.name;
+            impersonateTemplateSelect.appendChild(option);
+        });
+        
+        if (settings.impersonateTemplate && impersonateTemplates.some(t => t.id === settings.impersonateTemplate)) {
+            impersonateTemplateSelect.value = settings.impersonateTemplate;
+            
+            // Update the Default button for promptImpersonate
+            const currentTemplate = impersonateTemplates.find(t => t.id === settings.impersonateTemplate);
+            if (currentTemplate) {
+                const defaultBtn = container.querySelector('.gg-default-button[data-target="promptImpersonate"]');
+                if (defaultBtn) {
+                    defaultBtn.dataset.default = currentTemplate.content.replace(/'/g, "'").replace(/"/g, '"');
+                }
+            }
+        } else if (impersonateTemplates.length > 0) {
+             // Default to first if not set or invalid
+             impersonateTemplateSelect.value = impersonateTemplates[0].id;
+             updateSetting('impersonateTemplate', impersonateTemplates[0].id);
+        }
+    }
 }
-
-
