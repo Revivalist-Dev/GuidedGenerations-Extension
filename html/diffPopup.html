@@ -1,0 +1,47 @@
+<div id="gg-diff-popup" class="gg-popup" style="display:none;">
+    <div class="gg-popup-content">
+        <div class="gg-popup-header">
+            <h3>Rewrite Preview</h3>
+            <span class="gg-popup-close">&times;</span>
+        </div>
+        <div class="gg-popup-body">
+            <div id="gg-candidate-nav" class="gg-candidate-nav" style="display:none;">
+                <button id="gg-prev-candidate" class="menu_button sm" title="Previous Candidate">◄</button>
+                <span id="gg-candidate-counter">Candidate 1 / 4</span>
+                <button id="gg-next-candidate" class="menu_button sm" title="Next Candidate">►</button>
+            </div>
+            <div id="gg-analysis-container" class="gg-analysis-container" style="display:none;">
+                <details class="gg-analysis-details">
+                    <summary>AI Analysis (Chain of Thought)</summary>
+                    <div id="gg-analysis-content" class="gg-analysis-content"></div>
+                </details>
+            </div>
+            <div class="gg-diff-tabs">
+                <button class="gg-diff-tab active" data-tab="preview">Visual Diff</button>
+                <button class="gg-diff-tab" data-tab="edit">Edit Result</button>
+            </div>
+            
+            <div id="gg-preview-tab" class="gg-tab-content active">
+                <div id="gg-diff-container" class="gg-diff-container">
+                    <!-- Diff content injected here -->
+                </div>
+            </div>
+            
+            <div id="gg-edit-tab" class="gg-tab-content">
+                <textarea id="gg-diff-editor" class="gg-diff-editor" placeholder="Edit the result here..."></textarea>
+            </div>
+        </div>
+        <div class="gg-popup-footer">
+            <button id="gg-diff-cancel" class="menu_button">Cancel</button>
+            <button id="gg-diff-confirm" class="menu_button gg-confirm-btn">Apply Rewrite</button>
+        </div>
+    </div>
+</div>
+
+<div id="gg-loading-popup" class="gg-popup" style="display:none; z-index: 10002;">
+    <div class="gg-popup-content" style="width: 300px; padding: 20px; text-align: center; height: auto;">
+        <h3>Generating...</h3>
+        <div class="gg-spinner"></div>
+        <p id="gg-loading-message">Creating rewrite variations...</p>
+    </div>
+</div>

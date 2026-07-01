@@ -27,6 +27,7 @@ import thinkingGuide from './scripts/persistentGuides/thinkingGuide.js';
 import stateGuide from './scripts/persistentGuides/stateGuide.js';
 import clothesGuide from './scripts/persistentGuides/clothesGuide.js';
 import { checkAndExecuteTracker } from './scripts/persistentGuides/trackerLogic.js';
+import { initializeRewriteManager } from './scripts/ui/rewriteManager.js';
 
 // --- Shared State for Impersonation Input Recovery ---
 let previousImpersonateInput = ''; // Input before the last impersonation
@@ -202,6 +203,19 @@ export const defaultSettings = {
     persistentGuidesInChatlog: true, // Default on: Show persistent guides in chatlog
     injectionEndRole: 'system', // NEW SETTING: Default role for non-chat injections
     internalHelperPresetMaxTokens: 4000, // Max response tokens for GG Internal Helper Preset
+    // Rewrite settings
+    showRewriteContextMenu: true,
+    profileRewrite: '',
+    presetRewrite: '',
+    promptRewrite: '',
+    promptShorten: '',
+    promptExpand: '',
+    promptInstruct: '',
+    showDiffView: true,
+    rewriteContextCount: 5,
+    rewriteCandidateCount: 4,
+    rewriteTemperature: 1.0,
+    maxRewriteTokens: 500,
     // Profile and Preset settings for each guide
     profileClothes: '', // Profile for Clothes Guide
     presetClothes: INTERNAL_HELPER_PRESET_VALUE,
@@ -311,6 +325,10 @@ const PROMPT_SETTING_KEYS = [
     'promptGuidedResponse',
     'promptGuidedSwipe',
     'promptGuidedContinue',
+    'promptRewrite',
+    'promptShorten',
+    'promptExpand',
+    'promptInstruct',
     'customAutoGuidePrompt',
 ];
 
@@ -388,7 +406,7 @@ function migrateProfileSettings() {
         'presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules',
         'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros',
         'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd',
-        'presetCustomAuto', 'presetFun'
+        'presetCustomAuto', 'presetFun', 'presetRewrite'
     ];
     
     presetKeys.forEach(presetKey => {
@@ -460,7 +478,7 @@ async function updateSettingsUI() {
             const profileKeys = ['profileClothes','profileState','profileThinking','profileSituational','profileRules',
              'profileCustom','profileCorrections','profileSeparatedThinking','profileSpellchecker','profileEditIntros',
              'profileImpersonate1st','profileImpersonate2nd','profileImpersonate3rd',
-             'profileCustomAuto','profileFun','profileTrackerDetermine','profileTrackerUpdate'
+             'profileCustomAuto','profileFun','profileTrackerDetermine','profileTrackerUpdate', 'profileRewrite'
             ];
             
             profileKeys.forEach(key => {
@@ -496,7 +514,7 @@ async function updateSettingsUI() {
         ['presetClothes','presetState','presetThinking','presetSituational','presetRules',
          'presetCustom','presetCorrections','presetSeparatedThinking','presetSpellchecker','presetEditIntros',
          'presetImpersonate1st','presetImpersonate2nd','presetImpersonate3rd',
-         'presetCustomAuto','presetFun','presetTrackerDetermine','presetTrackerUpdate'
+         'presetCustomAuto','presetFun','presetTrackerDetermine','presetTrackerUpdate', 'presetRewrite'
         ].forEach(async (key) => {
             const select = document.getElementById(key);
             if (select) {
@@ -521,7 +539,7 @@ async function updateSettingsUI() {
         });
 
         // Populate guide prompt override textareas
-        for (const key of ['promptClothes','promptState','promptThinking','promptSituational','promptRules','promptCorrections','promptSeparatedThinking','promptSpellchecker','promptImpersonate1st','promptImpersonate2nd','promptImpersonate3rd','promptGuidedResponse','promptGuidedSwipe','promptGuidedContinue','customAutoGuidePrompt']) {
+        for (const key of ['promptClothes','promptState','promptThinking','promptSituational','promptRules','promptCorrections','promptSeparatedThinking','promptSpellchecker','promptImpersonate1st','promptImpersonate2nd','promptImpersonate3rd','promptGuidedResponse','promptGuidedSwipe','promptGuidedContinue','customAutoGuidePrompt', 'promptRewrite', 'promptShorten', 'promptExpand', 'promptInstruct']) {
             const textarea = document.getElementById(`gg_${key}`);
             if (textarea) {
                 textarea.value = await getPromptValue(key, defaultSettings[key] ?? '', {
@@ -531,7 +549,7 @@ async function updateSettingsUI() {
         }
 
         // Populate depth number input fields
-        ['depthPromptClothes', 'depthPromptState', 'depthPromptThinking', 'depthPromptCustomAuto', 'depthPromptSituational', 'depthPromptRules', 'depthPromptCorrections', 'depthPromptSeparatedThinking', 'depthPromptGuidedResponse', 'depthPromptGuidedSwipe', 'internalHelperPresetMaxTokens'].forEach(key => {
+        ['depthPromptClothes', 'depthPromptState', 'depthPromptThinking', 'depthPromptCustomAuto', 'depthPromptSituational', 'depthPromptRules', 'depthPromptCorrections', 'depthPromptSeparatedThinking', 'depthPromptGuidedResponse', 'depthPromptGuidedSwipe', 'internalHelperPresetMaxTokens', 'rewriteContextCount', 'rewriteCandidateCount', 'rewriteTemperature', 'maxRewriteTokens'].forEach(key => {
             const input = document.getElementById(`gg_${key}`);
             if (input) {
                 input.value = extension_settings[extensionName][key] ?? defaultSettings[key] ?? 0; // Default to 0 if undefined
@@ -649,8 +667,8 @@ function handleSettingChange(event) {
         settingValue = target.value;
         
         // Handle preset and profile dropdowns - no validation needed as values are preset IDs or profile names
-        const presetFields = ['presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules', 'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros', 'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd', 'presetCustomAuto'];
-        const profileFields = ['profileClothes', 'profileState', 'profileThinking', 'profileSituational', 'profileRules', 'profileCustom', 'profileCorrections', 'profileSeparatedThinking', 'profileSpellchecker', 'profileEditIntros', 'profileImpersonate1st', 'profileImpersonate2nd', 'profileImpersonate3rd', 'profileCustomAuto', 'profileFun', 'profileTracker'];
+        const presetFields = ['presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules', 'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros', 'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd', 'presetCustomAuto', 'presetRewrite'];
+        const profileFields = ['profileClothes', 'profileState', 'profileThinking', 'profileSituational', 'profileRules', 'profileCustom', 'profileCorrections', 'profileSeparatedThinking', 'profileSpellchecker', 'profileEditIntros', 'profileImpersonate1st', 'profileImpersonate2nd', 'profileImpersonate3rd', 'profileCustomAuto', 'profileFun', 'profileTracker', 'profileRewrite'];
         if (presetFields.includes(settingName) || profileFields.includes(settingName)) {
             // Values are preset IDs (numbers) or profile names, no pipe validation needed
             settingValue = settingValue.trim();
@@ -661,7 +679,7 @@ function handleSettingChange(event) {
             settingValue = settingValue.trim().replace(/\r?\n/g, '\n');
             
             // Validate preset fields to prevent pipe characters
-            const presetFields = ['presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules', 'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros', 'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd', 'presetCustomAuto'];
+            const presetFields = ['presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules', 'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros', 'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd', 'presetCustomAuto', 'presetRewrite'];
             if (presetFields.includes(settingName) && settingValue.includes('|')) {
                 console.warn(`${extensionName}: Preset value cannot contain pipe character (|)`);
                 // Remove pipe characters and update the input field
@@ -675,7 +693,7 @@ function handleSettingChange(event) {
             settingValue = settingValue.trim().replace(/\r?\n/g, '\n');
             
             // Validate preset fields to prevent pipe characters
-            const presetFields = ['presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules', 'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros', 'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd', 'presetCustomAuto'];
+            const presetFields = ['presetClothes', 'presetState', 'presetThinking', 'presetSituational', 'presetRules', 'presetCustom', 'presetCorrections', 'presetSeparatedThinking', 'presetSpellchecker', 'presetEditIntros', 'presetImpersonate1st', 'presetImpersonate2nd', 'presetImpersonate3rd', 'presetCustomAuto', 'presetRewrite'];
             if (presetFields.includes(settingName) && settingValue.includes('|')) {
                 console.warn(`${extensionName}: Preset value cannot contain pipe character (|)`);
                 // Remove pipe characters and update the input field
@@ -1086,6 +1104,8 @@ function updateExtensionButtons() {
             event.stopPropagation();
         });
 
+        // Add Target Button Toggle to menu? Maybe not needed as it's per-message
+        
         // Add new items after the separator
         ggToolsMenu.appendChild(editIntrosMenuItem);
         ggToolsMenu.appendChild(correctionsMenuItem);
@@ -1572,6 +1592,8 @@ async function setup() {
     startQRBarIntegration();
     // Setup mutation observer
     setupQRMutationObserver();
+    // Initialize Rewrite Manager
+    initializeRewriteManager();
     // Initialize listeners for guided continue functionality
     initGuidedContinueListeners();
 }
@@ -1968,7 +1990,29 @@ window.GuidedGenerations = {
     revertToOriginalGuidedContinue, // Expose new function
     guidedResponse,
     updatePersistentGuideCounter, // Expose counter update function
+    setGuidedGenerationTargetMessageId,
+    getGuidedGenerationTargetMessageId,
 };
+
+/**
+ * Message target state
+ */
+let guidedGenerationTargetMessageId = null;
+export function setGuidedGenerationTargetMessageId(id) {
+    $('.gg-target').removeClass('gg-target');
+    $('.guided_target_button.active').removeClass('active');
+    guidedGenerationTargetMessageId = id;
+    if (id !== null) {
+        const $targetRow = $(`#chat .mes`).filter((_, el) => el.getAttribute('mesid') == id);
+        if ($targetRow.length) {
+            $targetRow.addClass('gg-target');
+            $targetRow.find('.guided_target_button').addClass('active');
+        }
+    }
+}
+export function getGuidedGenerationTargetMessageId() {
+    return guidedGenerationTargetMessageId;
+}
 
 /**
  * Counts the number of active persistent guides.

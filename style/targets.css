@@ -1,0 +1,72 @@
+/* Guided Generations Targets */
+
+/* --- Guided Generations Target Message and Button Styles --- */
+
+/* Rewrite Highlight */
+.animated-highlight {
+    background-color: rgba(255, 255, 0, 0.3);
+    border-bottom: 2px solid gold;
+    transition: background-color 0.5s ease;
+}
+
+/* Highlight the message row that is set as the guided generation target */
+.mes.gg-target {
+    border-left: 5px solid var(--SmartThemeAccentColor, #1e90ff);
+    background-color: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.1));
+}
+
+.mes_row.guided-generation-target {
+    /* Use a subtle background color and border to indicate target */
+    background-color: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.15)) !important; 
+    border-left: 5px solid var(--SmartThemeAccentColor, #1e90ff);
+    padding-left: 5px; /* Adjust padding to accommodate the new border */
+}
+
+/* Base style for the "Set as Target" button */
+.guided_target_button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    /* Ensure visibility against potential parent overrides */
+    opacity: 0.3 !important; 
+    visibility: visible !important;
+    color: var(--SmartThemeEmColor) !important;
+}
+
+.guided_target_button:hover {
+    opacity: 1 !important;
+}
+
+/* Style for the "Set as Target" button when it is active */
+.guided_target_button.active {
+    /* Make the button visually distinct when active */
+    background-color: var(--SmartThemeAccentColor, #1e90ff);
+    color: var(--SmartThemeBg, #ffffff) !important; /* Ensure text/icon is visible */
+    border-color: var(--SmartThemeAccentColor, #1e90ff);
+    box-shadow: 0 0 8px rgba(30, 144, 255, 0.5); /* Subtle glow */
+    opacity: 1 !important;
+}
+
+/* Ensure the active button still looks good on hover */
+.guided_target_button.active:hover {
+    background-color: var(--SmartThemeActColor, #00bfff); /* Use a slightly brighter accent color on hover */
+    color: var(--SmartThemeBg, #ffffff) !important;
+    opacity: 1 !important;
+}
+
+/* Style for the Undo Rewrite Button */
+.guided_undo_rewrite_button {
+    color: var(--SmartThemeEmColor) !important;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+    opacity: 0.3 !important;
+    /* Optional: add a specific color for the undo action, e.g., warning color */
+    /* color: #f0ad4e; */ 
+}
+
+.guided_undo_rewrite_button:hover {
+    color: var(--SmartThemeAccentColor) !important;
+    transform: rotate(-45deg); /* Visual cue for "undo/rewind" */
+    opacity: 1 !important;
+}

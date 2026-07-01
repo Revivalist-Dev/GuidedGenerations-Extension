@@ -101,6 +101,40 @@
                     </div>
                 </div>
                 <hr>
+                <h4>Guided Rewrite</h4>
+                <div class="setting_item">
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <input type="checkbox" id="gg_showRewriteContextMenu" name="showRewriteContextMenu" class="gg-setting-input">
+                        <label for="gg_showRewriteContextMenu" style="margin-left: 8px;">Show Rewrite Context Menu on Text Selection</label>
+                    </div>
+                </div>
+                <div class="setting_item">
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <input type="checkbox" id="gg_showDiffView" name="showDiffView" class="gg-setting-input">
+                        <label for="gg_showDiffView" style="margin-left: 8px;">Show Diff Preview Before Applying Rewrite</label>
+                    </div>
+                </div>
+                <div class="setting_item">
+                    <label for="gg_rewriteContextCount" style="margin-bottom: 5px; display: block;">Context Message Count:</label>
+                    <input type="number" id="gg_rewriteContextCount" name="rewriteContextCount" class="gg-setting-input text_pole" min="0" max="50">
+                    <small class="setting_item_description">Number of previous messages to include as context for the rewrite.</small>
+                </div>
+                <div class="setting_item">
+                    <label for="gg_rewriteCandidateCount" style="margin-bottom: 5px; display: block;">Candidate Count:</label>
+                    <input type="number" id="gg_rewriteCandidateCount" name="rewriteCandidateCount" class="gg-setting-input text_pole" min="1" max="10">
+                    <small class="setting_item_description">Number of rewrite variations to generate at once.</small>
+                </div>
+                 <div class="setting_item">
+                    <label for="gg_rewriteTemperature" style="margin-bottom: 5px; display: block;">Temperature:</label>
+                    <input type="number" id="gg_rewriteTemperature" name="rewriteTemperature" class="gg-setting-input text_pole" min="0" max="2" step="0.1">
+                    <small class="setting_item_description">Base temperature for generation. Variations will have slightly higher temperature.</small>
+                </div>
+                <div class="setting_item">
+                    <label for="gg_maxRewriteTokens" style="margin-bottom: 5px; display: block;">Max Response Tokens:</label>
+                    <input type="number" id="gg_maxRewriteTokens" name="maxRewriteTokens" class="gg-setting-input text_pole" min="1" max="4000">
+                    <small class="setting_item_description">Maximum length of the rewritten section.</small>
+                </div>
+                <hr>
                 <h4>UI Preferences</h4>
                 <div class="setting_item">
                     <div style="display: flex; align-items: center; margin-bottom: 5px;">
@@ -439,6 +473,20 @@
                         </div>
                     </div>
 
+                    <!-- Rewrite -->
+                    <div style="display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <div style="flex: 0 0 160px; min-width: 0;">Guided Rewrite</div>
+                        <div style="flex: 1 1 0; min-width: 0;">
+                            <select id="profileRewrite" name="profileRewrite" class="gg-setting-input text_pole select_compact" style="width: 100%; min-width: 0;">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1 1 0; min-width: 0;">
+                            <select id="presetRewrite" name="presetRewrite" class="gg-setting-input text_pole select_compact" style="width: 100%; min-width: 0;">
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- Stat Tracker: Determine Changes -->
                     <div style="display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin-bottom: 8px;">
                         <div style="flex: 0 0 160px; min-width: 0;">Tracker: Determine</div>
@@ -572,6 +620,26 @@
                             <input type="checkbox" id="gg_rawPromptSpellchecker" name="rawPromptSpellchecker" class="gg-setting-input" style="margin-left:8px;">
                             <label for="gg_rawPromptSpellchecker" style="margin-left:4px;">Raw</label>
                         </div>
+                    </div>
+                    <div class="setting_item">
+                        <label for="gg_promptRewrite" style="margin-left: 8px; min-width:150px; display:block;">Rewrite Prompt</label>
+                        <textarea id="gg_promptRewrite" name="promptRewrite" class="gg-setting-input text_pole" rows="3" style="width:100%; margin-left:8px; min-width:200px;"></textarea>
+                        <button type="button" class="gg-default-button" data-target="promptRewrite" style="margin-top:4px;">Default</button>
+                    </div>
+                    <div class="setting_item">
+                        <label for="gg_promptShorten" style="margin-left: 8px; min-width:150px; display:block;">Shorten Prompt</label>
+                        <textarea id="gg_promptShorten" name="promptShorten" class="gg-setting-input text_pole" rows="3" style="width:100%; margin-left:8px; min-width:200px;"></textarea>
+                        <button type="button" class="gg-default-button" data-target="promptShorten" style="margin-top:4px;">Default</button>
+                    </div>
+                    <div class="setting_item">
+                        <label for="gg_promptExpand" style="margin-left: 8px; min-width:150px; display:block;">Expand Prompt</label>
+                        <textarea id="gg_promptExpand" name="promptExpand" class="gg-setting-input text_pole" rows="3" style="width:100%; margin-left:8px; min-width:200px;"></textarea>
+                        <button type="button" class="gg-default-button" data-target="promptExpand" style="margin-top:4px;">Default</button>
+                    </div>
+                    <div class="setting_item">
+                        <label for="gg_promptInstruct" style="margin-left: 8px; min-width:150px; display:block;">Instruct Rewrite Prompt</label>
+                        <textarea id="gg_promptInstruct" name="promptInstruct" class="gg-setting-input text_pole" rows="3" style="width:100%; margin-left:8px; min-width:200px;"></textarea>
+                        <button type="button" class="gg-default-button" data-target="promptInstruct" style="margin-top:4px;">Default</button>
                     </div>
                     <div class="setting_item">
                         <label for="gg_promptImpersonate1st" style="margin-left: 8px; min-width:150px; display:block;">Impersonate 1st Person Prompt</label>

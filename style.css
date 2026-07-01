@@ -1,3 +1,7 @@
+@import 'style/popups.css';
+@import 'style/context_menu.css';
+@import 'style/targets.css';
+
 /* Right-side action buttons */
 /* .gg-button class might be deprecated if .gg-action-button is used exclusively */
 /* Keep for potential backward compatibility or other uses */
